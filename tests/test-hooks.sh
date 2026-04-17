@@ -6,8 +6,10 @@ source "$PLUGIN_ROOT/tests/assert.sh"
 export CLAUDE_PLUGIN_ROOT="$PLUGIN_ROOT"
 TTY_FILE="$(mktemp)"
 export CLAUDE_SAY_TTY="$TTY_FILE"
-FLAG="$HOME/.claude/.claude-say-active"
-trap 'rm -f "$TTY_FILE"; rm -f "$FLAG"' EXIT
+export CLAUDE_PROJECT_DIR="$(mktemp -d)"
+mkdir -p "${CLAUDE_PROJECT_DIR}/.claude"
+FLAG="${CLAUDE_PROJECT_DIR}/.claude/.claude-say-active"
+trap 'rm -f "$TTY_FILE"; rm -rf "$CLAUDE_PROJECT_DIR"' EXIT
 
 # Helper: write a minimal transcript JSONL and return its path
 make_transcript() {

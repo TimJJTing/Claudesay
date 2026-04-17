@@ -15,7 +15,7 @@ description: >
 
 The claude-say plugin renders conversational replies as ASCII figure speech
 bubbles. This skill manages the on/off state by controlling the flag file
-`~/.claude/.claude-say-active`.
+`${CLAUDE_PROJECT_DIR}/.claude/.claude-say-active` — scoped to the current project.
 
 **State model:**
 - Flag file **exists** → on (hooks render bubbles and tool figures)
@@ -57,7 +57,7 @@ Identify which intent the user expressed before acting:
 ### Step 1 — Read current state
 
 ```bash
-FLAG="$HOME/.claude/.claude-say-active"
+FLAG="${CLAUDE_PROJECT_DIR}/.claude/.claude-say-active"
 [[ -f "$FLAG" ]] && CURRENT="on" || CURRENT="off"
 ```
 
@@ -80,7 +80,6 @@ fi
 if [[ "$CURRENT" == "on" ]]; then
   echo "claude-say is already on."
 else
-  mkdir -p "$HOME/.claude"
   touch "$FLAG"
   RENDER="${CLAUDE_PLUGIN_ROOT}/lib/render.sh"
   [[ -f "$RENDER" ]] && bash "$RENDER" "claude-say is now on!" "excited" 2>/dev/null || true
@@ -110,7 +109,6 @@ if [[ "$CURRENT" == "on" ]]; then
   rm -f "$FLAG"
   echo "claude-say toggled **off**."
 else
-  mkdir -p "$HOME/.claude"
   touch "$FLAG"
   RENDER="${CLAUDE_PLUGIN_ROOT}/lib/render.sh"
   [[ -f "$RENDER" ]] && bash "$RENDER" "claude-say toggled on!" "excited" 2>/dev/null || true
@@ -124,7 +122,7 @@ fi
 |---|---|
 | `jq` not installed | Print install instructions and stop |
 | `CLAUDE_PLUGIN_ROOT` unset | Print clear error and stop |
-| `~/.claude/` does not exist | `mkdir -p` before touching flag — never fail on this |
+| `.claude/` dir missing in project | Claude Code always creates it; this should not occur |
 | `render.sh` not found or exits non-zero | Skip preview silently; state change still succeeds |
 | Flag file is a directory | Report anomaly, ask user to remove it manually |
 

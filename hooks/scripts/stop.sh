@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-FLAG="$HOME/.claude/.claude-say-active"
+FLAG="${CLAUDE_PROJECT_DIR}/.claude/.claude-say-active"
 [[ -f "$FLAG" ]] || { printf '{"decision":"approve"}\n'; exit 0; }
 
 if ! command -v jq &>/dev/null; then
