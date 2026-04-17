@@ -9,7 +9,7 @@ _2026-04-17_
 
 - Make Claude Code interactions feel more alive and playful without interfering with technical output
 - Show tool-state context visually while tools are running
-- Keep the plugin zero-dependency (bash only) and toggleable per-session
+- Keep the plugin minimal-dependency (bash + `jq`) and toggleable per-session
 - Support user-defined characters via a simple override file
 
 ## Out of Scope (v1)
@@ -62,18 +62,18 @@ All intra-plugin paths use `${CLAUDE_PLUGIN_ROOT}` for portability.
 
 ### hooks/hooks.json
 
-Plugin hooks.json requires a `{"hooks": {...}}` outer wrapper and a `"matcher"` field on each entry:
+Plugin hooks.json uses a flat format keyed directly by event name — no outer wrapper, no matchers:
 
 ```json
 {
-  "hooks": {
-    "SessionStart":     [{ "matcher": "*", "hooks": [{ "type": "command", "command": "bash ${CLAUDE_PLUGIN_ROOT}/hooks/scripts/session-start.sh" }] }],
-    "UserPromptSubmit": [{ "matcher": "*", "hooks": [{ "type": "command", "command": "bash ${CLAUDE_PLUGIN_ROOT}/hooks/scripts/prompt-submit.sh" }] }],
-    "PreToolUse":       [{ "matcher": "*", "hooks": [{ "type": "command", "command": "bash ${CLAUDE_PLUGIN_ROOT}/hooks/scripts/pre-tool-use.sh" }] }],
-    "Stop":             [{ "matcher": "*", "hooks": [{ "type": "command", "command": "bash ${CLAUDE_PLUGIN_ROOT}/hooks/scripts/stop.sh" }] }]
-  }
+  "SessionStart":     [{ "hooks": [{ "type": "command", "command": "bash ${CLAUDE_PLUGIN_ROOT}/hooks/scripts/session-start.sh" }] }],
+  "UserPromptSubmit": [{ "hooks": [{ "type": "command", "command": "bash ${CLAUDE_PLUGIN_ROOT}/hooks/scripts/prompt-submit.sh" }] }],
+  "PreToolUse":       [{ "hooks": [{ "type": "command", "command": "bash ${CLAUDE_PLUGIN_ROOT}/hooks/scripts/pre-tool-use.sh" }] }],
+  "Stop":             [{ "hooks": [{ "type": "command", "command": "bash ${CLAUDE_PLUGIN_ROOT}/hooks/scripts/stop.sh" }] }]
 }
 ```
+
+Note: the `{"hooks": {...}}` wrapper and `"matcher"` fields belong to the user-level `settings.json` format, not plugin hooks.json.
 
 ---
 
@@ -84,7 +84,14 @@ State is held in a flag file: `~/.claude/.claude-say-active`.
 - **Exists** → figure mode on
 - **Absent** → figure mode off, all hooks exit immediately (zero overhead)
 
-The `/claude-say` skill toggles the flag and confirms with a brief figure preview.
+The `/claude-say` skill manages the flag with intent-aware logic — not a blind toggle:
+
+- **on**: if already active, confirm without change; if off, `mkdir -p ~/.claude && touch flag`, render preview
+- **off**: if already off, confirm without change; if on, `rm flag`, confirm
+- **status**: report current state, render preview if active
+- **toggle** (ambiguous phrasing): flip unconditionally
+
+The skill must guard against `CLAUDE_PLUGIN_ROOT` being unset (print a clear error) and `~/.claude/` not existing (create it before touching the flag).
 
 ---
 
@@ -122,10 +129,14 @@ Claude finishes turn
 echo '{"systemMessage": "<claude-say-protocol>\nWhen giving a conversational reply, append this tag at the very end:\n<claude-say mood=\"MOOD\">Brief 1-line summary of what you did or said</claude-say>\n\nAvailable moods: happy, excited, thinking, focused, upset, error\n- happy / excited \u2192 success outcomes (rotate between them for variety)\n- thinking        \u2192 in-progress or uncertain\n- focused         \u2192 working, running something\n- upset           \u2192 warning or partial failure\n- error           \u2192 actual failure\n\nRules:\n- Keep message under 60 chars\n- Do NOT add the tag to: pure code blocks, diffs, long technical output, tool-only responses\n- Only chatty, conversational replies get a bubble\n</claude-say-protocol>"}'
 ```
 
-`prompt-submit.sh` outputs a `systemMessage` reminder with every user turn so Claude never drifts:
+`prompt-submit.sh` outputs a compact `systemMessage` reminder with every user turn so Claude never drifts:
 ```bash
 echo '{"systemMessage": "[claude-say: end chatty reply with <claude-say mood=\"X\">summary</claude-say>]"}'
 ```
+
+**Known cost**: this injects ~20 tokens per turn, defeating prefix caching downstream of the injection point. Over long sessions this is non-trivial. A future v2 improvement is conditional injection — only reinject when the previous Stop detected a missing tag on a conversational reply.
+
+**Known limitation — tag leakage**: the raw `<claude-say mood="...">...</claude-say>` tag will appear in the terminal scrollback above the rendered bubble, because Claude streams it before the Stop hook fires. This is an accepted UX trade-off for v1.
 
 ---
 
@@ -147,6 +158,10 @@ render.sh "<message>" "<mood>" ["<prop>" "<side>"]
 6. Writes Unicode bubble + figure body to `/dev/tty` with ANSI colors
 
 **Critical**: render.sh writes to `/dev/tty`, not stdout. Hook scripts own stdout — it must carry only the JSON hook response, never visual output. Mixing ASCII art into stdout corrupts the hook protocol.
+
+**`/dev/tty` guard**: render.sh must check `[[ -w /dev/tty ]]` before writing. In CI, `--print` mode, `ssh -T`, or Docker, `/dev/tty` is unavailable. On failure, exit silently — do not let the error surface to stderr. This is an interactive-terminal-only feature.
+
+**Emoji alignment**: emoji props (🔧 🪄 🔍 etc.) are 2 display cells wide; the ASCII hand `m` is 1 cell. This makes the body line 1 cell wider than the face/leg rows when a prop is active, causing visible torso misalignment. Implementation must pad the idle hand to 2 cells (`m ` with trailing space) to keep the figure column-aligned regardless of which side holds the prop.
 
 **Body line assembly:**
 
@@ -269,7 +284,7 @@ CHAR_BOTTOM="    ||   ||\`~~>\n   (_)  (_)" # the rest of the character, can hav
 | Custom character missing a mood | Fall back to default figure expression |
 | Custom character missing `CHAR_HAND_LEFT` or `CHAR_HAND_RIGHT` | Fall back to `m` for each |
 | Tool entry has no `side` or side is `—` | No prop shown, both hands rendered normally |
-| `jq` not installed | stop.sh and pre-tool-use.sh exit 0 silently — no crash, no bubble |
+| `jq` not installed | `/claude-say on` preflight check detects this and prints install instructions; hooks exit 0 silently if somehow reached |
 | Flag absent | All hooks exit at line 2 — zero overhead |
 
 ---
