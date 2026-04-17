@@ -90,4 +90,35 @@ assert_contains "returns allow for unknown" "$out" '"permissionDecision":"allow"
 assert_contains "renders figure" "$(cat "$TTY_FILE")" "( -.-  )"
 > "$TTY_FILE"
 
+echo ""
+echo "=== session-start.sh: flag absent → empty output ==="
+rm -f "$FLAG"
+out=$(printf '{}' | bash "$PLUGIN_ROOT/hooks/scripts/session-start.sh")
+assert_eq "empty when flag absent" "$out" ""
+
+echo ""
+echo "=== session-start.sh: flag present → systemMessage JSON ==="
+mkdir -p "$(dirname "$FLAG")"; touch "$FLAG"
+out=$(printf '{}' | bash "$PLUGIN_ROOT/hooks/scripts/session-start.sh")
+assert_contains "outputs systemMessage key"     "$out" '"systemMessage"'
+assert_contains "contains protocol open tag"    "$out" 'claude-say-protocol'
+assert_contains "contains mood instructions"    "$out" 'happy'
+parsed=$(printf '%s' "$out" | jq -r '.systemMessage' 2>/dev/null || true)
+assert_contains "valid JSON with systemMessage" "$parsed" "claude-say-protocol"
+
+echo ""
+echo "=== prompt-submit.sh: flag absent → empty output ==="
+rm -f "$FLAG"
+out=$(printf '{}' | bash "$PLUGIN_ROOT/hooks/scripts/prompt-submit.sh")
+assert_eq "empty when flag absent" "$out" ""
+
+echo ""
+echo "=== prompt-submit.sh: flag present → compact reminder JSON ==="
+mkdir -p "$(dirname "$FLAG")"; touch "$FLAG"
+out=$(printf '{}' | bash "$PLUGIN_ROOT/hooks/scripts/prompt-submit.sh")
+assert_contains "outputs systemMessage key" "$out" '"systemMessage"'
+assert_contains "contains tag hint"         "$out" 'claude-say'
+parsed=$(printf '%s' "$out" | jq -r '.systemMessage' 2>/dev/null || true)
+assert_contains "valid JSON" "$parsed" "claude-say"
+
 print_summary
