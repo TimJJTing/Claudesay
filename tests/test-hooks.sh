@@ -56,4 +56,38 @@ assert_contains "last tag wins" "$(cat "$TTY_FILE")" "second msg"
 > "$TTY_FILE"
 rm -f "$TRANSCRIPT"
 
+echo ""
+echo "=== pre-tool-use.sh: flag absent → silent allow ==="
+rm -f "$FLAG"
+out=$(printf '{"tool_name":"Edit","tool_input":{"file_path":"foo.py"}}' \
+  | bash "$PLUGIN_ROOT/hooks/scripts/pre-tool-use.sh")
+assert_contains "returns allow decision" "$out" '"permissionDecision":"allow"'
+assert_eq "no tty output when flag absent" "$(cat "$TTY_FILE")" ""
+
+echo ""
+echo "=== pre-tool-use.sh: known tool renders figure ==="
+mkdir -p "$(dirname "$FLAG")"; touch "$FLAG"
+out=$(printf '{"tool_name":"Read","tool_input":{"file_path":"src/main.py"}}' \
+  | bash "$PLUGIN_ROOT/hooks/scripts/pre-tool-use.sh")
+assert_contains "returns allow" "$out" '"permissionDecision":"allow"'
+assert_contains "renders figure to tty" "$(cat "$TTY_FILE")" "( ._.  )"
+assert_contains "shows prop on left" "$(cat "$TTY_FILE")" "📖="
+> "$TTY_FILE"
+
+echo ""
+echo "=== pre-tool-use.sh: path > 50 chars truncated ==="
+LONG="src/very/deep/path/to/some/really/quite/long/file.py"
+printf '{"tool_name":"Edit","tool_input":{"file_path":"%s"}}' "$LONG" \
+  | bash "$PLUGIN_ROOT/hooks/scripts/pre-tool-use.sh" > /dev/null
+assert_contains "truncates long path" "$(cat "$TTY_FILE")" "…"
+> "$TTY_FILE"
+
+echo ""
+echo "=== pre-tool-use.sh: unknown tool uses default ==="
+out=$(printf '{"tool_name":"SomeUnknownTool","tool_input":{}}' \
+  | bash "$PLUGIN_ROOT/hooks/scripts/pre-tool-use.sh")
+assert_contains "returns allow for unknown" "$out" '"permissionDecision":"allow"'
+assert_contains "renders figure" "$(cat "$TTY_FILE")" "( -.-  )"
+> "$TTY_FILE"
+
 print_summary
