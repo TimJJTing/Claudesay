@@ -1,0 +1,59 @@
+#!/usr/bin/env bash
+set -euo pipefail
+PLUGIN_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+source "$PLUGIN_ROOT/tests/assert.sh"
+
+export CLAUDE_PLUGIN_ROOT="$PLUGIN_ROOT"
+TTY_FILE="$(mktemp)"
+export CLAUDE_SAY_TTY="$TTY_FILE"
+FLAG="$HOME/.claude/.claude-say-active"
+trap 'rm -f "$TTY_FILE"; rm -f "$FLAG"' EXIT
+
+# Helper: write a minimal transcript JSONL and return its path
+make_transcript() {
+  local text="$1"
+  local tmp; tmp=$(mktemp)
+  printf '{"role":"user","content":"hello"}\n' >> "$tmp"
+  jq -n --arg t "$text" '{"role":"assistant","content":[{"type":"text","text":$t}]}' >> "$tmp"
+  echo "$tmp"
+}
+
+run_stop() {
+  local transcript="$1"
+  printf '{"transcript_path":"%s"}\n' "$transcript" \
+    | bash "$PLUGIN_ROOT/hooks/scripts/stop.sh"
+}
+
+echo "=== stop.sh: flag absent → silent approve ==="
+rm -f "$FLAG"
+out=$(run_stop /dev/null)
+assert_eq "returns approve when flag absent" "$out" '{"decision":"approve"}'
+assert_eq "no tty output when flag absent" "$(cat "$TTY_FILE")" ""
+
+echo ""
+echo "=== stop.sh: flag present, tag found → renders + approves ==="
+mkdir -p "$(dirname "$FLAG")"; touch "$FLAG"
+TRANSCRIPT=$(make_transcript 'Great job! <claude-say mood="excited">All 3 tests pass!</claude-say>')
+out=$(run_stop "$TRANSCRIPT")
+assert_eq "returns approve" "$out" '{"decision":"approve"}'
+assert_contains "renders bubble to tty" "$(cat "$TTY_FILE")" "All 3 tests pass!"
+> "$TTY_FILE"
+rm -f "$TRANSCRIPT"
+
+echo ""
+echo "=== stop.sh: flag present, no tag → silent approve ==="
+TRANSCRIPT=$(make_transcript 'Here is some code without a tag')
+out=$(run_stop "$TRANSCRIPT")
+assert_eq "returns approve when no tag" "$out" '{"decision":"approve"}'
+assert_eq "no tty output when no tag" "$(cat "$TTY_FILE")" ""
+rm -f "$TRANSCRIPT"
+
+echo ""
+echo "=== stop.sh: multiple tags → uses last one ==="
+TRANSCRIPT=$(make_transcript 'First <claude-say mood="happy">first msg</claude-say> then <claude-say mood="excited">second msg</claude-say>')
+run_stop "$TRANSCRIPT" > /dev/null
+assert_contains "last tag wins" "$(cat "$TTY_FILE")" "second msg"
+> "$TTY_FILE"
+rm -f "$TRANSCRIPT"
+
+print_summary
