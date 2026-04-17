@@ -62,12 +62,16 @@ All intra-plugin paths use `${CLAUDE_PLUGIN_ROOT}` for portability.
 
 ### hooks/hooks.json
 
+Plugin hooks.json requires a `{"hooks": {...}}` outer wrapper and a `"matcher"` field on each entry:
+
 ```json
 {
-  "SessionStart":      [{ "hooks": [{ "type": "command", "command": "bash ${CLAUDE_PLUGIN_ROOT}/hooks/scripts/session-start.sh" }] }],
-  "UserPromptSubmit":  [{ "hooks": [{ "type": "command", "command": "bash ${CLAUDE_PLUGIN_ROOT}/hooks/scripts/prompt-submit.sh" }] }],
-  "PreToolUse":        [{ "hooks": [{ "type": "command", "command": "bash ${CLAUDE_PLUGIN_ROOT}/hooks/scripts/pre-tool-use.sh" }] }],
-  "Stop":              [{ "hooks": [{ "type": "command", "command": "bash ${CLAUDE_PLUGIN_ROOT}/hooks/scripts/stop.sh" }] }]
+  "hooks": {
+    "SessionStart":     [{ "matcher": "*", "hooks": [{ "type": "command", "command": "bash ${CLAUDE_PLUGIN_ROOT}/hooks/scripts/session-start.sh" }] }],
+    "UserPromptSubmit": [{ "matcher": "*", "hooks": [{ "type": "command", "command": "bash ${CLAUDE_PLUGIN_ROOT}/hooks/scripts/prompt-submit.sh" }] }],
+    "PreToolUse":       [{ "matcher": "*", "hooks": [{ "type": "command", "command": "bash ${CLAUDE_PLUGIN_ROOT}/hooks/scripts/pre-tool-use.sh" }] }],
+    "Stop":             [{ "matcher": "*", "hooks": [{ "type": "command", "command": "bash ${CLAUDE_PLUGIN_ROOT}/hooks/scripts/stop.sh" }] }]
+  }
 }
 ```
 
@@ -94,43 +98,33 @@ User sends message
   └─▶ prompt-submit.sh   flag? → echo one-line reminder to stdout (injected as context)
 
 Claude calls a tool
-  └─▶ pre-tool-use.sh    read tool_name → map to (prop, mood) → render figure to terminal
+  └─▶ pre-tool-use.sh    parse stdin JSON → get tool_name
+                          map to (prop, mood, side) → render.sh writes figure to /dev/tty
+                          echo '{"hookSpecificOutput":{"permissionDecision":"allow"}}' to stdout
 
 Claude finishes turn
-  └─▶ stop.sh            read transcript → extract last assistant message
-                          grep <claude-say mood="X">...</claude-say>
-                          found?  → render bubble + figure
-                          absent? → silent exit (no duplicate output)
+  └─▶ stop.sh            parse stdin JSON → get transcript_path
+                          jq-extract last assistant message from transcript
+                          grep <claude-say mood="X">...</claude-say> within that string
+                          found?  → render.sh writes bubble to /dev/tty
+                                    echo '{"decision":"approve"}' to stdout
+                          absent? → echo '{"decision":"approve"}' to stdout (silent)
 ```
 
 ---
 
 ## The `<claude-say>` Protocol
 
-`session-start.sh` injects this instruction block when the flag exists:
+`session-start.sh` injects the protocol via a `systemMessage` in its JSON output (the hook API for injecting context into Claude's session):
 
-```
-<claude-say-protocol>
-When giving a conversational reply, append this tag at the very end:
-<claude-say mood="MOOD">Brief 1-line summary of what you did or said</claude-say>
-
-Available moods: happy, excited, thinking, focused, upset, error
-- happy / excited → success outcomes (rotate between them for variety)
-- thinking        → in-progress or uncertain
-- focused         → working, running something
-- upset           → warning or partial failure
-- error           → actual failure
-
-Rules:
-- Keep message under 60 chars
-- Do NOT add the tag to: pure code blocks, diffs, long technical output, tool-only responses
-- Only chatty, conversational replies get a bubble
-</claude-say-protocol>
+```bash
+# session-start.sh output to stdout:
+echo '{"systemMessage": "<claude-say-protocol>\nWhen giving a conversational reply, append this tag at the very end:\n<claude-say mood=\"MOOD\">Brief 1-line summary of what you did or said</claude-say>\n\nAvailable moods: happy, excited, thinking, focused, upset, error\n- happy / excited \u2192 success outcomes (rotate between them for variety)\n- thinking        \u2192 in-progress or uncertain\n- focused         \u2192 working, running something\n- upset           \u2192 warning or partial failure\n- error           \u2192 actual failure\n\nRules:\n- Keep message under 60 chars\n- Do NOT add the tag to: pure code blocks, diffs, long technical output, tool-only responses\n- Only chatty, conversational replies get a bubble\n</claude-say-protocol>"}'
 ```
 
-`prompt-submit.sh` echoes a one-liner reminder with every user turn so Claude never drifts:
-```
-[claude-say: end chatty reply with <claude-say mood="X">summary</claude-say>]
+`prompt-submit.sh` outputs a `systemMessage` reminder with every user turn so Claude never drifts:
+```bash
+echo '{"systemMessage": "[claude-say: end chatty reply with <claude-say mood=\"X\">summary</claude-say>]"}'
 ```
 
 ---
@@ -150,7 +144,9 @@ render.sh "<message>" "<mood>" ["<prop>" "<side>"]
 3. Sources user character override (`~/.claude/claude-say/character.sh`) or `characters/default.sh`
 4. Wraps message text at 45 chars
 5. Assembles body line: `{left_or_prop}( body ){right_or_prop}` based on side
-6. Renders Unicode bubble + figure body to stdout with ANSI colors
+6. Writes Unicode bubble + figure body to `/dev/tty` with ANSI colors
+
+**Critical**: render.sh writes to `/dev/tty`, not stdout. Hook scripts own stdout — it must carry only the JSON hook response, never visual output. Mixing ASCII art into stdout corrupts the hook protocol.
 
 **Body line assembly:**
 
@@ -273,6 +269,7 @@ CHAR_BOTTOM="    ||   ||\`~~>\n   (_)  (_)" # the rest of the character, can hav
 | Custom character missing a mood | Fall back to default figure expression |
 | Custom character missing `CHAR_HAND_LEFT` or `CHAR_HAND_RIGHT` | Fall back to `m` for each |
 | Tool entry has no `side` or side is `—` | No prop shown, both hands rendered normally |
+| `jq` not installed | stop.sh and pre-tool-use.sh exit 0 silently — no crash, no bubble |
 | Flag absent | All hooks exit at line 2 — zero overhead |
 
 ---
