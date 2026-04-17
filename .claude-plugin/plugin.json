@@ -1,0 +1,7 @@
+{
+  "name": "claude-say",
+  "version": "1.0.0",
+  "description": "Renders Claude replies as ASCII figure speech bubbles",
+  "author": { "name": "jjting" },
+  "license": "MIT"
+}
