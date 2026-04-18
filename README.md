@@ -4,6 +4,33 @@ A Claude Code plugin that renders conversational replies as ASCII figure speech
 bubbles in the terminal. Tool-use events show the figure holding a relevant
 prop with a context-appropriate face expression.
 
+## How It Works
+
+claude-say is built entirely on [Claude Code hooks](https://docs.anthropic.com/en/docs/claude-code/hooks) — small shell scripts
+that run at specific points in Claude's lifecycle. No external server, no
+background process, just four Bash scripts that react to events:
+
+1. **Session starts →** A short instruction is injected into the conversation
+   telling Claude to end chatty replies with a `<claude-say>` tag containing a
+   mood and a one-line summary.
+
+2. **You send a prompt →** The hook checks whether you typed a toggle command
+   (like `turn on claude-say`). If so, it flips the flag file and blocks
+   Claude's turn entirely — Claude never sees the message. For anything else,
+   it appends a short reminder so Claude remembers to include the tag.
+
+3. **Claude calls a tool →** Before each tool call, the hook looks up the tool
+   name, picks an emoji prop and a mood, and renders the figure holding that
+   prop (e.g. 🔧 for edits, 🔍 for search).
+
+4. **Claude finishes its reply →** The hook reads the conversation transcript,
+   extracts the `<claude-say>` tag from the last assistant message, and renders
+   the speech bubble with the appropriate face.
+
+All rendering is pure Bash — the script draws a Unicode box around the message
+text and prints the ASCII figure underneath. Nothing is sent over the network;
+everything happens locally in your terminal.
+
 ## Requirements
 
 - macOS or Linux (interactive terminal required — no CI/Docker support)
@@ -66,7 +93,7 @@ CHAR_TOP="    /\\__/\\"
 CHAR_BODY="( ,,,, )"
 CHAR_HAND_LEFT="m"
 CHAR_HAND_RIGHT="m"
-CHAR_BOTTOM="    ||   ||
+CHAR_BOTTOM="    ||   ||\`~~>
    (_)  (_)"
 ```
 
@@ -76,13 +103,44 @@ All behavior is in hooks (declared inline in `.claude-plugin/plugin.json`):
 
 | Hook | Script | Responsibility |
 | --- | --- | --- |
-| `SessionStart` | `hooks/scripts/session-start.sh` | Injects the `<claude-say-protocol>` system message when the flag is on. |
+| `SessionStart` | `hooks/scripts/session-start.sh` | Injects the `<claude-say-protocol>` instruction as additional context when the flag is on. |
 | `UserPromptSubmit` | `hooks/scripts/prompt-submit.sh` | Handles toggle/status intents in-hook; emits the per-turn reminder on other prompts. |
 | `PreToolUse` | `hooks/scripts/pre-tool-use.sh` | Renders the tool-holding figure before each tool call. |
-| `Stop` | `hooks/scripts/stop.sh` | Parses the `<claude-say>` tag from the final assistant message and renders the speech bubble. |
+| `Stop` | `hooks/scripts/stop.sh` | Parses the `<claude-say>` tag from the JSONL transcript and renders the speech bubble. |
 
 The skill at `skills/claude-say/SKILL.md` is documentation/fallback only —
 it does not run Bash.
+
+## FAQ
+
+### Does it consume my tokens?
+
+Yes, but not much. The plugin adds a small instruction to the conversation at
+session start (~120 tokens) plus a short per-turn reminder (~20 tokens). The
+`<claude-say>` tag Claude writes in its reply also costs a few output tokens
+per turn. In practice the overhead is negligible — well under 1 % of a typical
+conversation's total token usage.
+
+The hooks themselves (rendering, toggling, reading the transcript) are pure
+Bash and do not make any API calls, so they cost zero tokens.
+
+### Why does the bubble not always appear?
+
+The bubble only renders when Claude includes a `<claude-say>` tag in its
+reply. The session-start instruction tells Claude to add the tag only on
+"chatty, conversational" replies and to skip it for pure code blocks, diffs,
+long technical output, or tool-only responses. So if you ask Claude to write a
+file or run a command and it responds with nothing but code, you won't see a
+bubble — that's intentional.
+
+Other reasons a bubble may not appear:
+
+- **claude-say is off.** Check with `claude-say status`.
+- **Claude forgot.** The model doesn't always follow the instruction perfectly.
+  This is a known limitation of prompt-based approaches.
+- **Non-interactive terminal.** The figure requires a writable `/dev/tty`. CI,
+  Docker, `--print` mode, and non-interactive SSH sessions will silently skip
+  rendering.
 
 ## Known Limitations
 
