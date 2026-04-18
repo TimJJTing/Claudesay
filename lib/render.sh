@@ -52,18 +52,18 @@ for l in "${LINES[@]+"${LINES[@]}"}"; do
 done
 
 # Build bubble border strings
-INNER=$(( MAX + 2 ))  # 1-space pad each side
-TOP_BORDER=$(printf '─%.0s' $(seq 1 $((INNER + 2))))
+INNER=$(( MAX + 2 < 8 ? 8 : MAX + 2 ))  # 1-space pad each side; min 8 so RIGHT_REST >= 3
+TOP_BORDER=$(printf '─%.0s' $(seq 1 $INNER))
 LEFT4=$(printf '─%.0s' $(seq 1 4))
-RIGHT_REST=$(printf '─%.0s' $(seq 1 $((INNER - 2))))
+RIGHT_REST=$(printf '─%.0s' $(seq 1 $((INNER - 5))))
 
 {
   printf '\n'
   printf ' ╭%s╮\n' "$TOP_BORDER"
   for l in "${LINES[@]+"${LINES[@]}"}"; do
-    printf ' │ %-*s │\n' "$MAX" "$l"
+    printf ' │ %-*s │\n' "$((INNER - 2))" "$l"
   done
-  printf ' ╰%s╮%s╯\n' "$LEFT4" "$RIGHT_REST"
+  printf ' ╰%s┬%s╯\n' "$LEFT4" "$RIGHT_REST"
   printf '      │\n'
   printf '%s\n'   "${CHAR_TOP}"
   printf '   %s\n' "$FACE"
