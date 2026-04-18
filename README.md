@@ -97,16 +97,50 @@ CHAR_BOTTOM="    ||   ||\`~~>
    (_)  (_)"
 ```
 
+### Props
+
+During tool calls the figure holds a context-specific emoji prop. The prop
+replaces the hand on the active side, producing one of two layouts:
+
+```
+# prop on the left hand             # prop on the right hand
+🔧=( ,,,, )m                          m( ,,,, )=🪄
+```
+
+The prop is determined by the tool name; tools with no suitable hand-holdable
+prop render with both hands as normal. The current assignments are:
+
+| Tool(s)                                       | Prop                           |
+| --------------------------------------------- | ------------------------------ |
+| `Edit`, `Write`                               | 🔧 wrench                      |
+| `Bash`                                        | 🪄 wand                        |
+| `Grep`, `Glob`, `ToolSearch`                  | 🔍 magnifying glass            |
+| `Read`                                        | 📖 book                        |
+| `WebFetch`, `WebSearch`                       | 📡 satellite dish              |
+| `Agent`                                       | 🤖 robot                       |
+| `TodoWrite`                                   | 📋 clipboard                   |
+| `AskUserQuestion`                             | 🎤 microphone                  |
+| `CronCreate`                                  | ⏰ alarm clock                 |
+| `CronList`                                    | 📅 calendar                    |
+| `EnterPlanMode`                               | 🗺️ map                         |
+| `EnterWorktree`, `ExitWorktree`               | 🌿 branch                      |
+| `Monitor`                                     | 🔭 telescope                   |
+| `NotebookEdit`                                | 📓 notebook                    |
+| `SendMessage`                                 | 📨 envelope                    |
+| `TaskCreate`                                  | 📝 memo                        |
+| `ListMcpResourcesTool`, `ReadMcpResourceTool` | 🔌 plug                        |
+| All others                                    | _(no prop — both hands shown)_ |
+
 ## Architecture
 
 All behavior is in hooks (declared inline in `.claude-plugin/plugin.json`):
 
-| Hook | Script | Responsibility |
-| --- | --- | --- |
-| `SessionStart` | `hooks/scripts/session-start.sh` | Injects the `<claude-say-protocol>` instruction as additional context when the flag is on. |
-| `UserPromptSubmit` | `hooks/scripts/prompt-submit.sh` | Handles toggle/status intents in-hook; emits the per-turn reminder on other prompts. |
-| `PreToolUse` | `hooks/scripts/pre-tool-use.sh` | Renders the tool-holding figure before each tool call. |
-| `Stop` | `hooks/scripts/stop.sh` | Parses the `<claude-say>` tag from the JSONL transcript and renders the speech bubble. |
+| Hook               | Script                           | Responsibility                                                                             |
+| ------------------ | -------------------------------- | ------------------------------------------------------------------------------------------ |
+| `SessionStart`     | `hooks/scripts/session-start.sh` | Injects the `<claude-say-protocol>` instruction as additional context when the flag is on. |
+| `UserPromptSubmit` | `hooks/scripts/prompt-submit.sh` | Handles toggle/status intents in-hook; emits the per-turn reminder on other prompts.       |
+| `PreToolUse`       | `hooks/scripts/pre-tool-use.sh`  | Renders the tool-holding figure before each tool call.                                     |
+| `Stop`             | `hooks/scripts/stop.sh`          | Parses the `<claude-say>` tag from the JSONL transcript and renders the speech bubble.     |
 
 The skill at `skills/claude-say/SKILL.md` is documentation/fallback only —
 it does not run Bash.
@@ -141,6 +175,23 @@ Other reasons a bubble may not appear:
 - **Non-interactive terminal.** The figure requires a writable `/dev/tty`. CI,
   Docker, `--print` mode, and non-interactive SSH sessions will silently skip
   rendering.
+
+### How is this different from Claude Code's once built-in Buddy?
+
+Buddy was a Tamagotchi-style virtual pet — a companion you hatch and tend to. claude-say is
+something different: it's a **reaction layer on top of Claude's actual work**, not a pet.
+
+- **Automatic, not manual.** claude-say fires on its own — every tool call renders a figure
+  holding a context prop, every chatty reply gets a speech bubble. You don't invoke it; it
+  shows up because Claude is working.
+- **Stateless by design.** There's no persistent creature to feed or evolve. The mood shown
+  in each bubble comes directly from that reply's `<claude-say>` tag — it reflects what
+  Claude just did, then it's gone.
+- **Hook-driven, not a slash-command.** Everything runs through Claude Code hooks
+  (`SessionStart`, `UserPromptSubmit`, `PreToolUse`, `Stop`). No Pro subscription required,
+  no built-in Claude Code feature needed — just Bash scripts reacting to lifecycle events.
+- **About the work, not the relationship.** Buddy gave you something to care for. claude-say
+  gives Claude a face while it codes.
 
 ## Known Limitations
 
