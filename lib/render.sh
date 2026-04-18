@@ -48,7 +48,8 @@ done <<< "$(printf '%s' "$MESSAGE" | fold -sw 45)"
 # Find the longest display line (byte length — acceptable for ASCII-BMP messages)
 MAX=0
 for l in "${LINES[@]+"${LINES[@]}"}"; do
-  [[ ${#l} -gt $MAX ]] && MAX=${#l} || true
+  clen=$(printf '%s' "$l" | wc -m | tr -d ' ')
+  [[ $clen -gt $MAX ]] && MAX=$clen || true
 done
 
 # Build bubble border strings
@@ -61,12 +62,18 @@ RIGHT_REST=$(printf '─%.0s' $(seq 1 $((INNER - 5))))
   printf '\n'
   printf ' ╭%s╮\n' "$TOP_BORDER"
   for l in "${LINES[@]+"${LINES[@]}"}"; do
-    printf ' │ %-*s │\n' "$((INNER - 2))" "$l"
+    blen=$(printf '%s' "$l" | wc -c | tr -d ' ')
+    clen=$(printf '%s' "$l" | wc -m | tr -d ' ')
+    printf ' │ %-*s │\n' "$(( INNER - 2 + blen - clen ))" "$l"
   done
   printf ' ╰%s┬%s╯\n' "$LEFT4" "$RIGHT_REST"
   printf '      │\n'
   printf '%s\n'   "${CHAR_TOP}"
   printf '   %s\n' "$FACE"
-  printf '  %s\n'  "$BODY_LINE"
+  if [[ -n "$PROP" && "$SIDE" == "left" ]]; then
+    printf ' %s\n'   "$BODY_LINE"
+  else
+    printf '  %s\n'  "$BODY_LINE"
+  fi
   printf '%s\n'   "${CHAR_BOTTOM}"
 } > "$TTY"

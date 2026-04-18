@@ -72,7 +72,7 @@ CHAR_BOTTOM="    ||   ||
 
 ## Architecture
 
-All behaviour is in hooks (declared inline in `.claude-plugin/plugin.json`):
+All behavior is in hooks (declared inline in `.claude-plugin/plugin.json`):
 
 | Hook | Script | Responsibility |
 | --- | --- | --- |

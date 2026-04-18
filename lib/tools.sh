@@ -7,7 +7,7 @@ get_tool_info() {
   case "$tool" in
     Edit|Write)             echo "🔧 focused left"   ;;
     Bash)                   echo "🪄 focused right"  ;;
-    Grep|Glob)              echo "🔍 thinking left"  ;;
+    Grep|Glob|ToolSearch)   echo "🔍 thinking left"  ;;
     Read)                   echo "📖 thinking left"  ;;
     WebFetch|WebSearch)     echo "📡 thinking right" ;;
     Agent)                  echo "🤖 excited right"  ;;
