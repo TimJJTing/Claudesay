@@ -1,135 +1,58 @@
 ---
 name: claude-say-toggle
-version: 1.0.0
+version: 2.0.0
 description: >
-  This skill should be used when the user asks to "turn on claude-say", "turn
-  off claude-say", "enable the figure", "disable the figure", "toggle
-  claude-say", "is claude-say active?", "claude-say status", "show the figure",
-  "hide the figure", "stop showing the ascii character", "enable ascii
-  companion". Do not trigger for unrelated uses of "figure" (e.g. matplotlib
-  charts) or generic "turn off" requests that do not mention claude-say or the
-  figure.
+  Triggers when the user asks to "turn on claude-say", "turn off claude-say",
+  "enable/disable the figure", "toggle claude-say", "claude-say status",
+  "show/hide the figure", "enable ascii companion". Do not trigger for
+  unrelated uses of "figure" (e.g. matplotlib charts) or generic "turn off"
+  requests that do not mention claude-say.
 ---
 
 # claude-say Toggle
 
 The claude-say plugin renders conversational replies as ASCII figure speech
-bubbles. This skill manages the on/off state by controlling the flag file
-`${CLAUDE_PROJECT_DIR}/.claude/.claude-say-active` — scoped to the current project.
+bubbles. **Toggle state is handled entirely by the `UserPromptSubmit` hook** —
+no Bash tool calls from you, no permission prompts for the user.
 
-**State model:**
-- Flag file **exists** → on (hooks render bubbles and tool figures)
-- Flag file **absent** → off (all hooks exit at line 2, zero overhead)
+## What you should do
 
-## Prerequisites Check
+When the user's prompt is a toggle/status request like those above, the hook
+will have already:
 
-Before acting, verify `jq` is installed:
+1. Read the current state from `${CLAUDE_PROJECT_DIR}/.claude/.claude-say-active`.
+2. Created or removed the flag file.
+3. Rendered a confirmation bubble directly to the user's terminal.
+4. Returned `{"decision":"block", "reason":"…"}`, which **suppresses your
+   turn entirely for pure toggle prompts** — meaning if the hook matched, you
+   will not be asked to respond at all.
 
-```bash
-command -v jq &>/dev/null || {
-  echo "claude-say requires jq. Install it first:"
-  echo "  macOS:  brew install jq"
-  echo "  Linux:  sudo apt install jq   # or dnf / apk"
-  exit 1
-}
-```
+So in practice: if you see the plain user request reach you anyway (e.g. it
+was phrased loosely enough that the hook's regex didn't match), just
+acknowledge in one line and do nothing. Do **not** run `touch`, `rm`, `[[ -f
+… ]]`, or `bash render.sh` yourself.
 
-If `CLAUDE_PLUGIN_ROOT` is unset, report it clearly:
+## When the hook regex misses
 
-```bash
-[[ -n "${CLAUDE_PLUGIN_ROOT:-}" ]] || {
-  echo "CLAUDE_PLUGIN_ROOT is not set. Is the claude-say plugin installed correctly?"
-  exit 1
-}
-```
+The hook accepts exact phrasings such as:
 
-## Intent Detection
+- `turn on claude-say`, `enable claude-say`, `activate claude-say`
+- `turn off claude-say`, `disable claude-say`, `hide claude-say`
+- `toggle claude-say`
+- `claude-say status`, `is claude-say on?`
 
-Identify which intent the user expressed before acting:
+If the user phrased it differently (e.g. "hey can you flip claude-say on for
+me please"), the hook will fall through. In that case:
 
-- **on** — "turn on", "enable", "start", "show the figure", "activate"
-- **off** — "turn off", "disable", "stop showing", "hide the figure", "deactivate"
-- **status** — "is it on?", "is claude-say active?", "status", "check"
-- **toggle** — "toggle", bare invocation with no qualifier
-
-## Step-by-Step Procedure
-
-### Step 1 — Read current state
-
-```bash
-FLAG="${CLAUDE_PROJECT_DIR}/.claude/.claude-say-active"
-[[ -f "$FLAG" ]] && CURRENT="on" || CURRENT="off"
-```
-
-### Step 2 — Act on intent
-
-**Intent: status**
-
-```bash
-echo "claude-say is currently **$CURRENT**."
-if [[ "$CURRENT" == "on" ]]; then
-  bash "${CLAUDE_PLUGIN_ROOT}/lib/render.sh" "claude-say is active" "happy" 2>/dev/null || true
-fi
-```
-
----
-
-**Intent: on**
-
-```bash
-if [[ "$CURRENT" == "on" ]]; then
-  echo "claude-say is already on."
-else
-  touch "$FLAG"
-  RENDER="${CLAUDE_PLUGIN_ROOT}/lib/render.sh"
-  [[ -f "$RENDER" ]] && bash "$RENDER" "claude-say is now on!" "excited" 2>/dev/null || true
-  echo "claude-say is now **on**. The ASCII figure will appear with each reply."
-fi
-```
-
----
-
-**Intent: off**
-
-```bash
-if [[ "$CURRENT" == "off" ]]; then
-  echo "claude-say is already off."
-else
-  rm -f "$FLAG"
-  echo "claude-say is now **off**. No more figures until you turn it back on."
-fi
-```
-
----
-
-**Intent: toggle**
-
-```bash
-if [[ "$CURRENT" == "on" ]]; then
-  rm -f "$FLAG"
-  echo "claude-say toggled **off**."
-else
-  touch "$FLAG"
-  RENDER="${CLAUDE_PLUGIN_ROOT}/lib/render.sh"
-  [[ -f "$RENDER" ]] && bash "$RENDER" "claude-say toggled on!" "excited" 2>/dev/null || true
-  echo "claude-say toggled **on**."
-fi
-```
-
-## Error Cases
-
-| Condition | Behaviour |
-|---|---|
-| `jq` not installed | Print install instructions and stop |
-| `CLAUDE_PLUGIN_ROOT` unset | Print clear error and stop |
-| `.claude/` dir missing in project | Claude Code always creates it; this should not occur |
-| `render.sh` not found or exits non-zero | Skip preview silently; state change still succeeds |
-| Flag file is a directory | Report anomaly, ask user to remove it manually |
+1. Reply in one short sentence explaining that the exact phrases above are
+   what the hook recognizes.
+2. Do **not** try to toggle via Bash — direct the user to the recognized
+   phrase instead. This preserves the no-permission-prompt property.
 
 ## Confirmation Reply Style
 
-Keep replies short and conversational — one or two sentences. The rendered figure
-is the primary confirmation; the text is supplementary.
+When you do need to reply, one short sentence is enough. The rendered figure
+(from the hook) is the primary confirmation.
 
-✓ Good: "claude-say is now **on**. The figure will appear with each reply."
-✗ Bad: "I have successfully enabled the claude-say plugin by creating the flag file..."
+- Good: "claude-say is on."
+- Bad: "I have successfully enabled the claude-say plugin by creating the flag file..."

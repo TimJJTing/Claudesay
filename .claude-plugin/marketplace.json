@@ -1,0 +1,12 @@
+{
+  "name": "claude-say",
+  "owner": { "name": "jjting" },
+  "plugins": [
+    {
+      "name": "claude-say",
+      "description": "Renders Claude replies as ASCII figure speech bubbles",
+      "source": "./",
+      "category": "productivity"
+    }
+  ]
+}

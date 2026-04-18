@@ -109,18 +109,83 @@ parsed=$(printf '%s' "$out" | jq -r '.systemMessage' 2>/dev/null || true)
 assert_contains "valid JSON with systemMessage" "$parsed" "claude-say-protocol"
 
 echo ""
-echo "=== prompt-submit.sh: flag absent → empty output ==="
+echo "=== prompt-submit.sh: flag absent, non-toggle prompt → empty ==="
 rm -f "$FLAG"
-out=$(printf '{}' | bash "$PLUGIN_ROOT/hooks/scripts/prompt-submit.sh")
-assert_eq "empty when flag absent" "$out" ""
+out=$(printf '{"prompt":"hello"}' | bash "$PLUGIN_ROOT/hooks/scripts/prompt-submit.sh")
+assert_eq "empty when flag absent and no intent" "$out" ""
 
 echo ""
-echo "=== prompt-submit.sh: flag present → compact reminder JSON ==="
+echo "=== prompt-submit.sh: flag present, non-toggle prompt → compact reminder JSON ==="
 mkdir -p "$(dirname "$FLAG")"; touch "$FLAG"
-out=$(printf '{}' | bash "$PLUGIN_ROOT/hooks/scripts/prompt-submit.sh")
+out=$(printf '{"prompt":"how are you"}' | bash "$PLUGIN_ROOT/hooks/scripts/prompt-submit.sh")
 assert_contains "outputs systemMessage key" "$out" '"systemMessage"'
 assert_contains "contains tag hint"         "$out" 'claude-say'
 parsed=$(printf '%s' "$out" | jq -r '.systemMessage' 2>/dev/null || true)
 assert_contains "valid JSON" "$parsed" "claude-say"
+
+echo ""
+echo "=== prompt-submit.sh: 'turn on claude-say' → creates flag + block ==="
+rm -f "$FLAG"; > "$TTY_FILE"
+out=$(printf '{"prompt":"turn on claude-say"}' | bash "$PLUGIN_ROOT/hooks/scripts/prompt-submit.sh")
+assert_contains "returns block decision" "$out" '"decision": "block"'
+assert_contains "reason mentions turned on" "$out" "turned on"
+[[ -f "$FLAG" ]] && flag_exists="yes" || flag_exists="no"
+assert_eq "flag file created" "$flag_exists" "yes"
+assert_contains "renders confirmation bubble" "$(cat "$TTY_FILE")" "now on"
+
+echo ""
+echo "=== prompt-submit.sh: 'turn on claude-say' when already on → already-on block, no bubble ==="
+> "$TTY_FILE"
+out=$(printf '{"prompt":"turn on claude-say"}' | bash "$PLUGIN_ROOT/hooks/scripts/prompt-submit.sh")
+assert_contains "returns block" "$out" '"decision": "block"'
+assert_contains "reason mentions already on" "$out" "already on"
+assert_eq "no bubble re-rendered" "$(cat "$TTY_FILE")" ""
+
+echo ""
+echo "=== prompt-submit.sh: 'disable claude-say' → removes flag + block ==="
+> "$TTY_FILE"
+out=$(printf '{"prompt":"disable claude-say"}' | bash "$PLUGIN_ROOT/hooks/scripts/prompt-submit.sh")
+assert_contains "returns block" "$out" '"decision": "block"'
+assert_contains "reason mentions turned off" "$out" "turned off"
+[[ -f "$FLAG" ]] && flag_exists="yes" || flag_exists="no"
+assert_eq "flag file removed" "$flag_exists" "no"
+
+echo ""
+echo "=== prompt-submit.sh: 'toggle claude-say' flips from off to on ==="
+rm -f "$FLAG"; > "$TTY_FILE"
+out=$(printf '{"prompt":"toggle claude-say"}' | bash "$PLUGIN_ROOT/hooks/scripts/prompt-submit.sh")
+assert_contains "returns block" "$out" '"decision": "block"'
+assert_contains "reason mentions toggled on" "$out" "toggled on"
+[[ -f "$FLAG" ]] && flag_exists="yes" || flag_exists="no"
+assert_eq "flag file exists after toggle" "$flag_exists" "yes"
+
+echo ""
+echo "=== prompt-submit.sh: 'claude-say status' reports on ==="
+> "$TTY_FILE"
+out=$(printf '{"prompt":"claude-say status"}' | bash "$PLUGIN_ROOT/hooks/scripts/prompt-submit.sh")
+assert_contains "returns block" "$out" '"decision": "block"'
+assert_contains "reason reports on" "$out" "is on"
+
+echo ""
+echo "=== prompt-submit.sh: 'is claude-say on?' reports on ==="
+out=$(printf '{"prompt":"is claude-say on?"}' | bash "$PLUGIN_ROOT/hooks/scripts/prompt-submit.sh")
+assert_contains "status query returns block" "$out" '"decision": "block"'
+assert_contains "reports on" "$out" "is on"
+
+echo ""
+echo "=== prompt-submit.sh: trailing punctuation tolerated ==="
+out=$(printf '{"prompt":"turn off claude-say."}' | bash "$PLUGIN_ROOT/hooks/scripts/prompt-submit.sh")
+assert_contains "trailing period accepted" "$out" "turned off"
+[[ -f "$FLAG" ]] && flag_exists="yes" || flag_exists="no"
+assert_eq "flag removed" "$flag_exists" "no"
+
+echo ""
+echo "=== prompt-submit.sh: loose phrasing falls through to reminder, does not toggle ==="
+touch "$FLAG"  # flag on so the reminder branch emits something
+out=$(printf '{"prompt":"hey can you flip claude-say on for me"}' | bash "$PLUGIN_ROOT/hooks/scripts/prompt-submit.sh")
+assert_contains "falls through to reminder" "$out" '"systemMessage"'
+# Flag state must be unchanged by a fall-through.
+[[ -f "$FLAG" ]] && flag_exists="yes" || flag_exists="no"
+assert_eq "flag state unchanged" "$flag_exists" "yes"
 
 print_summary
