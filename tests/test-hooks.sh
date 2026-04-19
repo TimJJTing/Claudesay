@@ -77,7 +77,7 @@ out=$(printf '{"tool_name":"Read","tool_input":{"file_path":"src/main.py"}}' \
   | bash "$PLUGIN_ROOT/hooks/scripts/pre-tool-use.sh")
 assert_contains "returns allow" "$out" '"permissionDecision":"allow"'
 parsed=$(printf '%s' "$out" | jq -r '.systemMessage // ""' 2>/dev/null || true)
-assert_contains "renders character in systemMessage" "$parsed" "( ._.  )"
+assert_contains "renders character in systemMessage" "$parsed" "( -.-  )"
 assert_contains "shows prop on left" "$parsed" "📖="
 assert_eq "no direct tty write" "$(cat "$TTY_FILE")" ""
 
@@ -95,7 +95,7 @@ out=$(printf '{"tool_name":"SomeUnknownTool","tool_input":{}}' \
   | bash "$PLUGIN_ROOT/hooks/scripts/pre-tool-use.sh")
 assert_contains "returns allow for unknown" "$out" '"permissionDecision":"allow"'
 parsed=$(printf '%s' "$out" | jq -r '.systemMessage // ""' 2>/dev/null || true)
-assert_contains "renders character" "$parsed" "( -.-  )"
+assert_contains "renders character" "$parsed" "("
 
 echo ""
 echo "=== session-start.sh: flag absent → empty output ==="
@@ -138,8 +138,9 @@ assert_contains "returns block decision" "$out" '"decision": "block"'
 assert_contains "reason mentions turned on" "$out" "turned on"
 [[ -f "$FLAG" ]] && flag_exists="yes" || flag_exists="no"
 assert_eq "flag file created" "$flag_exists" "yes"
-parsed=$(printf '%s' "$out" | jq -r '.systemMessage // ""' 2>/dev/null || true)
-assert_contains "renders confirmation bubble in systemMessage" "$parsed" "now on"
+parsed=$(printf '%s' "$out" | jq -r '.reason // ""' 2>/dev/null || true)
+assert_contains "renders confirmation bubble in reason" "$parsed" "now on"
+assert_contains "bubble drawn in reason" "$parsed" "╭"
 assert_eq "no direct tty write" "$(cat "$TTY_FILE")" ""
 
 echo ""
@@ -148,8 +149,8 @@ echo "=== prompt-submit.sh: 'turn on claudesay' when already on → already-on b
 out=$(printf '{"prompt":"turn on claudesay"}' | bash "$PLUGIN_ROOT/hooks/scripts/prompt-submit.sh")
 assert_contains "returns block" "$out" '"decision": "block"'
 assert_contains "reason mentions already on" "$out" "already on"
-parsed=$(printf '%s' "$out" | jq -r '.systemMessage // ""' 2>/dev/null || true)
-assert_eq "no bubble re-rendered in systemMessage" "$parsed" ""
+parsed=$(printf '%s' "$out" | jq -r '.reason // ""' 2>/dev/null || true)
+assert_eq "no bubble re-rendered" "$(printf '%s' "$parsed" | grep -c '╭' | tr -d ' ')" "0"
 
 echo ""
 echo "=== prompt-submit.sh: 'disable claudesay' → removes flag + block ==="
@@ -157,6 +158,9 @@ echo "=== prompt-submit.sh: 'disable claudesay' → removes flag + block ==="
 out=$(printf '{"prompt":"disable claudesay"}' | bash "$PLUGIN_ROOT/hooks/scripts/prompt-submit.sh")
 assert_contains "returns block" "$out" '"decision": "block"'
 assert_contains "reason mentions turned off" "$out" "turned off"
+parsed=$(printf '%s' "$out" | jq -r '.reason // ""' 2>/dev/null || true)
+assert_contains "renders goodbye bubble in reason" "$parsed" "bye"
+assert_contains "bubble drawn in reason" "$parsed" "╭"
 [[ -f "$FLAG" ]] && flag_exists="yes" || flag_exists="no"
 assert_eq "flag file removed" "$flag_exists" "no"
 

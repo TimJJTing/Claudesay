@@ -6,9 +6,9 @@ get_tool_info() {
   local tool="$1"
   case "$tool" in
     Edit|Write)                           echo "🔧 focused left"   ;;
-    Bash)                                 echo "🪄 focused right"  ;;
-    Grep|Glob|ToolSearch)                 echo "🔍 thinking left"  ;;
-    Read)                                 echo "📖 thinking left"  ;;
+    Bash)                                 echo "🪄 excited right"  ;;
+    Grep|Glob|ToolSearch)                 echo "🔍 focused left"  ;;
+    Read)                                 echo "📖 focused left"  ;;
     WebFetch|WebSearch)                   echo "📡 thinking right" ;;
     Agent)                                echo "🤖 excited right"  ;;
     TodoWrite)                            echo "📋 focused left"   ;;
@@ -19,8 +19,8 @@ get_tool_info() {
     EnterPlanMode)                        echo "🗺️ thinking left"  ;;
     ExitPlanMode)                         echo "none excited right" ;;
     EnterWorktree|ExitWorktree)           echo "🌿 focused right"   ;;
-    LSP)                                  echo "🔍 thinking left" ;;
-    Monitor)                              echo "🔭 thinking left" ;;
+    LSP)                                  echo "🔍 focused left" ;;
+    Monitor)                              echo "🔭 focused left" ;;
     NotebookEdit)                         echo "📓 focused right"   ;;
     PowerShell)                           echo "💠 focused right" ;;
     SendMessage)                          echo "📨 excited right"  ;;
@@ -30,6 +30,6 @@ get_tool_info() {
     TaskOutput|TaskStop)                  echo "none focused right" ;;
     TeamCreate|TeamDelete)                echo "💰 excited right" ;;
     ListMcpResourcesTool|ReadMcpResourceTool) echo "🔌 thinking left" ;;
-    *)                                    echo "none focused none"  ;;
+    *)                                    echo "none happy none"  ;;
   esac
 }

@@ -52,8 +52,9 @@ fi
 RENDER="${CLAUDE_PLUGIN_ROOT}/lib/render.sh"
 
 # Capture the rendered bubble into a string. Writing to /dev/tty gets clobbered
-# when Claude Code's TUI redraws its dynamic region; systemMessage lands in
-# permanent scrollback instead.
+# when Claude Code's TUI redraws its dynamic region. We fold the bubble into
+# the block-decision `reason` field, which renders verbatim in the warning
+# panel.
 capture_bubble() {
   local msg="$1" mood="$2" tmp bubble
   [[ -f "$RENDER" ]] || { printf ''; return; }
@@ -64,12 +65,13 @@ capture_bubble() {
   printf '%s' "$bubble"
 }
 
-# $1 = reason (blocks Claude's turn), $2 = optional systemMessage (bubble)
+# $1 = reason text, $2 = optional bubble. Bubble (when present) is folded into
+# reason because CC's block-decision panel renders `reason` verbatim while
+# `systemMessage` is path-dependent for UserPromptSubmit blocks.
 emit_block() {
-  local reason="$1" sysmsg="${2:-}"
-  if [[ -n "$sysmsg" ]]; then
-    jq -n --arg r "$reason" --arg m "$sysmsg" \
-      '{decision:"block", reason:$r, systemMessage:$m}'
+  local reason="$1" bubble="${2:-}"
+  if [[ -n "$bubble" ]]; then
+    jq -n --arg r "${reason}"$'\n'"${bubble}" '{decision:"block", reason:$r}'
   else
     jq -n --arg r "$reason" '{decision:"block", reason:$r}'
   fi
@@ -99,13 +101,15 @@ case "$INTENT" in
       emit_block "claudesay is already off."
     else
       rm -f "$FLAG"
-      emit_block "claudesay turned off."
+      BUBBLE=$(capture_bubble "claudesay is now off. bye!" "happy")
+      emit_block "claudesay turned off." "$BUBBLE"
     fi
     ;;
   toggle)
     if [[ "$CURRENT" == "on" ]]; then
       rm -f "$FLAG"
-      emit_block "claudesay toggled off."
+      BUBBLE=$(capture_bubble "claudesay toggled off. bye!" "happy")
+      emit_block "claudesay toggled off." "$BUBBLE"
     else
       mkdir -p "$(dirname "$FLAG")"
       touch "$FLAG"
