@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 # UserPromptSubmit hook:
-#   - Detects toggle/status intent in the user's prompt ("turn on claude-say",
+#   - Detects toggle/status intent in the user's prompt ("turn on claudesay",
 #     etc.) and handles it in-hook — no Bash tool call from Claude, so no
 #     permission prompts.
 #   - For all other prompts when the flag is on, emits the per-turn reminder.
 set -euo pipefail
 
-FLAG="${CLAUDE_PROJECT_DIR}/.claude/.claude-say-active"
-HINT='[claude-say: end chatty reply with <claude-say mood="X">summary</claude-say>]'
+FLAG="${CLAUDE_PROJECT_DIR}/.claude/.claudesay-active"
+HINT='[claudesay: end chatty reply with <claudesay mood="X">summary</claudesay>]'
 
 INPUT=$(cat)
 
@@ -26,17 +26,17 @@ NORM=$(printf '%s' "$PROMPT" \
   | sed -E 's/^[[:space:]]+|[[:space:]]+$//g; s/[.!]+$//')
 
 INTENT=""
-# Order matters: check status/toggle before on/off so "is claude-say on?" isn't
+# Order matters: check status/toggle before on/off so "is claudesay on?" isn't
 # swallowed by the "on" branch.
-if [[ "$NORM" =~ ^(is[[:space:]]+)?claude[-[:space:]]?say[[:space:]]+(status|active|on)[[:space:]]*\??$ ]]; then
+if [[ "$NORM" =~ ^(is[[:space:]]+)?claudesay[[:space:]]+(status|active|on)[[:space:]]*\??$ ]]; then
   INTENT="status"
-elif [[ "$NORM" =~ ^claude[-[:space:]]?say[[:space:]]+status[[:space:]]*\??$ ]]; then
+elif [[ "$NORM" =~ ^claudesay[[:space:]]+status[[:space:]]*\??$ ]]; then
   INTENT="status"
-elif [[ "$NORM" =~ ^toggle[[:space:]]+claude[-[:space:]]?say[[:space:]]*\??$ ]]; then
+elif [[ "$NORM" =~ ^toggle[[:space:]]+claudesay[[:space:]]*\??$ ]]; then
   INTENT="toggle"
-elif [[ "$NORM" =~ ^(turn[[:space:]]+on|enable|activate|start)[[:space:]]+(the[[:space:]]+)?claude[-[:space:]]?say[[:space:]]*\??$ ]]; then
+elif [[ "$NORM" =~ ^(turn[[:space:]]+on|enable|activate|start)[[:space:]]+(the[[:space:]]+)?claudesay[[:space:]]*\??$ ]]; then
   INTENT="on"
-elif [[ "$NORM" =~ ^(turn[[:space:]]+off|disable|deactivate|stop|hide)[[:space:]]+(the[[:space:]]+)?claude[-[:space:]]?say[[:space:]]*\??$ ]]; then
+elif [[ "$NORM" =~ ^(turn[[:space:]]+off|disable|deactivate|stop|hide)[[:space:]]+(the[[:space:]]+)?claudesay[[:space:]]*\??$ ]]; then
   INTENT="off"
 fi
 
@@ -78,39 +78,39 @@ emit_block() {
 case "$INTENT" in
   status)
     if [[ "$CURRENT" == "on" ]]; then
-      BUBBLE=$(capture_bubble "claude-say is on" "happy")
-      emit_block "claude-say is on." "$BUBBLE"
+      BUBBLE=$(capture_bubble "claudesay is on" "happy")
+      emit_block "claudesay is on." "$BUBBLE"
     else
-      emit_block "claude-say is off."
+      emit_block "claudesay is off."
     fi
     ;;
   on)
     if [[ "$CURRENT" == "on" ]]; then
-      emit_block "claude-say is already on."
+      emit_block "claudesay is already on."
     else
       mkdir -p "$(dirname "$FLAG")"
       touch "$FLAG"
-      BUBBLE=$(capture_bubble "claude-say is now on!" "excited")
-      emit_block "claude-say turned on." "$BUBBLE"
+      BUBBLE=$(capture_bubble "claudesay is now on!" "excited")
+      emit_block "claudesay turned on." "$BUBBLE"
     fi
     ;;
   off)
     if [[ "$CURRENT" == "off" ]]; then
-      emit_block "claude-say is already off."
+      emit_block "claudesay is already off."
     else
       rm -f "$FLAG"
-      emit_block "claude-say turned off."
+      emit_block "claudesay turned off."
     fi
     ;;
   toggle)
     if [[ "$CURRENT" == "on" ]]; then
       rm -f "$FLAG"
-      emit_block "claude-say toggled off."
+      emit_block "claudesay toggled off."
     else
       mkdir -p "$(dirname "$FLAG")"
       touch "$FLAG"
-      BUBBLE=$(capture_bubble "claude-say toggled on!" "excited")
-      emit_block "claude-say toggled on." "$BUBBLE"
+      BUBBLE=$(capture_bubble "claudesay toggled on!" "excited")
+      emit_block "claudesay toggled on." "$BUBBLE"
     fi
     ;;
 esac

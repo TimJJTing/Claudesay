@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-FLAG="${CLAUDE_PROJECT_DIR}/.claude/.claude-say-active"
+FLAG="${CLAUDE_PROJECT_DIR}/.claude/.claudesay-active"
 [[ -f "$FLAG" ]] || { printf '{"decision":"approve"}\n'; exit 0; }
 
 if ! command -v jq &>/dev/null; then
@@ -36,14 +36,14 @@ if [[ -z "$LAST_MSG" ]]; then
   exit 0
 fi
 
-# Extract the last <claude-say> tag (POSIX grep -o, no -P needed).
+# Extract the last <claudesay> tag (POSIX grep -o, no -P needed).
 TAG=$(printf '%s' "$LAST_MSG" \
-  | grep -o '<claude-say mood="[^"]*">[^<]*</claude-say>' \
+  | grep -o '<claudesay mood="[^"]*">[^<]*</claudesay>' \
   | tail -1 || true)
 
 if [[ -n "$TAG" ]]; then
   MOOD=$(printf '%s' "$TAG" | sed 's/.*mood="\([^"]*\)".*/\1/')
-  MSG=$(printf '%s' "$TAG"  | sed 's/.*>\(.*\)<\/claude-say>/\1/')
+  MSG=$(printf '%s' "$TAG"  | sed 's/.*>\(.*\)<\/claudesay>/\1/')
 
   RENDER="${CLAUDE_PLUGIN_ROOT}/lib/render.sh"
   if [[ -f "$RENDER" ]]; then

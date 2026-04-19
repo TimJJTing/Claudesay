@@ -2,7 +2,7 @@
 set -euo pipefail
 
 ALLOW='{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"allow"}}'
-FLAG="${CLAUDE_PROJECT_DIR}/.claude/.claude-say-active"
+FLAG="${CLAUDE_PROJECT_DIR}/.claude/.claudesay-active"
 [[ -f "$FLAG" ]] || { printf '%s\n' "$ALLOW"; exit 0; }
 
 if ! command -v jq &>/dev/null; then

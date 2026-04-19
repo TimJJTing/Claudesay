@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-FLAG="${CLAUDE_PROJECT_DIR}/.claude/.claude-say-active"
+FLAG="${CLAUDE_PROJECT_DIR}/.claude/.claudesay-active"
 [[ -f "$FLAG" ]] || exit 0
 
-PROTOCOL='<claude-say-protocol>
+PROTOCOL='<claudesay-protocol>
 When giving a conversational reply, append this tag at the very end:
-<claude-say mood="MOOD">Brief 1-line summary of what you did or said</claude-say>
+<claudesay mood="MOOD">Brief 1-line summary of what you did or said</claudesay>
 
 Available moods: happy, excited, thinking, focused, upset, error
 - happy / excited → success outcomes (rotate between them for variety)
@@ -19,7 +19,7 @@ Rules:
 - Keep message under 60 chars
 - Do NOT add the tag to: pure code blocks, diffs, long technical output, tool-only responses
 - Only chatty, conversational replies get a bubble
-</claude-say-protocol>'
+</claudesay-protocol>'
 
 printf '{"hookSpecificOutput":{"hookEventName":"SessionStart","additionalContext":%s}}\n' \
   "$(printf '%s' "$PROTOCOL" | jq -Rs .)"

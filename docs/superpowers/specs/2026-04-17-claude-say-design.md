@@ -1,9 +1,9 @@
-# claude-say Design Spec
+# claudesay Design Spec
 _2026-04-17_
 
 ## Overview
 
-`claude-say` is a Claude Code plugin that renders Claude's conversational replies as ASCII figure speech bubbles in the terminal. Tool-use events show the figure holding a relevant prop (wrench, magnifier, etc.) with a context-appropriate face expression. The figure is expressive, dynamic, and customizable.
+`claudesay` is a Claude Code plugin that renders Claude's conversational replies as ASCII character speech bubbles in the terminal. Tool-use events show the character holding a relevant prop (wrench, magnifier, etc.) with a context-appropriate face expression. The character is expressive, dynamic, and customizable.
 
 ## Goals
 
@@ -14,7 +14,7 @@ _2026-04-17_
 
 ## Out of Scope (v1)
 
-- Agent teams multi-figure mode (nice-to-have, future)
+- Agent teams multi-character mode (nice-to-have, future)
 - Windows support
 
 ---
@@ -24,7 +24,7 @@ _2026-04-17_
 ### Plugin Structure
 
 ```
-claude-say/
+claudesay/
 ├── .claude-plugin/
 │   └── plugin.json              # Required manifest
 ├── hooks/
@@ -32,17 +32,17 @@ claude-say/
 │   └── scripts/
 │       ├── session-start.sh     # Inject protocol at session open
 │       ├── prompt-submit.sh     # Reinforce tag format per turn
-│       ├── pre-tool-use.sh      # Render tool-state figure
-│       └── stop.sh              # Parse <claude-say> → render bubble
+│       ├── pre-tool-use.sh      # Render tool-state character
+│       └── stop.sh              # Parse <claudesay> → render bubble
 ├── lib/
-│   ├── render.sh                # Bubble + figure renderer (core)
+│   ├── render.sh                # Bubble + character renderer (core)
 │   ├── moods.sh                 # Mood → face expression map
 │   └── tools.sh                 # Tool name → prop + mood map
 ├── characters/
-│   └── default.sh               # Default ASCII figure body parts
+│   └── default.sh               # Default ASCII character body parts
 ├── skills/
-│   └── claude-say/
-│       └── SKILL.md             # /claude-say on/off toggle skill
+│   └── claudesay/
+│       └── SKILL.md             # /claudesay on/off toggle skill
 └── README.md
 ```
 
@@ -52,9 +52,9 @@ All intra-plugin paths use `${CLAUDE_PLUGIN_ROOT}` for portability.
 
 ```json
 {
-  "name": "claude-say",
+  "name": "claudesay",
   "version": "1.0.0",
-  "description": "Renders Claude replies as ASCII figure speech bubbles",
+  "description": "Renders Claude replies as ASCII character speech bubbles",
   "license": "MIT",
   "keywords": ["ascii", "companion", "tui", "fun"]
 }
@@ -79,12 +79,12 @@ Note: the `{"hooks": {...}}` wrapper and `"matcher"` fields belong to the user-l
 
 ## On/Off Switch
 
-State is held in a flag file: `~/.claude/.claude-say-active`.
+State is held in a flag file: `~/.claude/.claudesay-active`.
 
-- **Exists** → figure mode on
-- **Absent** → figure mode off, all hooks exit immediately (zero overhead)
+- **Exists** → character mode on
+- **Absent** → character mode off, all hooks exit immediately (zero overhead)
 
-The `/claude-say` skill manages the flag with intent-aware logic — not a blind toggle:
+The `/claudesay` skill manages the flag with intent-aware logic — not a blind toggle:
 
 - **on**: if already active, confirm without change; if off, `mkdir -p ~/.claude && touch flag`, render preview
 - **off**: if already off, confirm without change; if on, `rm flag`, confirm
@@ -99,20 +99,20 @@ The skill must guard against `CLAUDE_PLUGIN_ROOT` being unset (print a clear err
 
 ```
 Session opens
-  └─▶ session-start.sh   flag? → print <claude-say-protocol> block into context
+  └─▶ session-start.sh   flag? → print <claudesay-protocol> block into context
 
 User sends message
   └─▶ prompt-submit.sh   flag? → echo one-line reminder to stdout (injected as context)
 
 Claude calls a tool
   └─▶ pre-tool-use.sh    parse stdin JSON → get tool_name
-                          map to (prop, mood, side) → render.sh writes figure to /dev/tty
+                          map to (prop, mood, side) → render.sh writes character to /dev/tty
                           echo '{"hookSpecificOutput":{"permissionDecision":"allow"}}' to stdout
 
 Claude finishes turn
   └─▶ stop.sh            parse stdin JSON → get transcript_path
                           jq-extract last assistant message from transcript
-                          grep <claude-say mood="X">...</claude-say> within that string
+                          grep <claudesay mood="X">...</claudesay> within that string
                           found?  → render.sh writes bubble to /dev/tty
                                     echo '{"decision":"approve"}' to stdout
                           absent? → echo '{"decision":"approve"}' to stdout (silent)
@@ -120,23 +120,23 @@ Claude finishes turn
 
 ---
 
-## The `<claude-say>` Protocol
+## The `<claudesay>` Protocol
 
 `session-start.sh` injects the protocol via a `systemMessage` in its JSON output (the hook API for injecting context into Claude's session):
 
 ```bash
 # session-start.sh output to stdout:
-echo '{"systemMessage": "<claude-say-protocol>\nWhen giving a conversational reply, append this tag at the very end:\n<claude-say mood=\"MOOD\">Brief 1-line summary of what you did or said</claude-say>\n\nAvailable moods: happy, excited, thinking, focused, upset, error\n- happy / excited \u2192 success outcomes (rotate between them for variety)\n- thinking        \u2192 in-progress or uncertain\n- focused         \u2192 working, running something\n- upset           \u2192 warning or partial failure\n- error           \u2192 actual failure\n\nRules:\n- Keep message under 60 chars\n- Do NOT add the tag to: pure code blocks, diffs, long technical output, tool-only responses\n- Only chatty, conversational replies get a bubble\n</claude-say-protocol>"}'
+echo '{"systemMessage": "<claudesay-protocol>\nWhen giving a conversational reply, append this tag at the very end:\n<claudesay mood=\"MOOD\">Brief 1-line summary of what you did or said</claudesay>\n\nAvailable moods: happy, excited, thinking, focused, upset, error\n- happy / excited \u2192 success outcomes (rotate between them for variety)\n- thinking        \u2192 in-progress or uncertain\n- focused         \u2192 working, running something\n- upset           \u2192 warning or partial failure\n- error           \u2192 actual failure\n\nRules:\n- Keep message under 60 chars\n- Do NOT add the tag to: pure code blocks, diffs, long technical output, tool-only responses\n- Only chatty, conversational replies get a bubble\n</claudesay-protocol>"}'
 ```
 
 `prompt-submit.sh` outputs a compact `systemMessage` reminder with every user turn so Claude never drifts:
 ```bash
-echo '{"systemMessage": "[claude-say: end chatty reply with <claude-say mood=\"X\">summary</claude-say>]"}'
+echo '{"systemMessage": "[claudesay: end chatty reply with <claudesay mood=\"X\">summary</claudesay>]"}'
 ```
 
 **Known cost**: this injects ~20 tokens per turn, defeating prefix caching downstream of the injection point. Over long sessions this is non-trivial. A future v2 improvement is conditional injection — only reinject when the previous Stop detected a missing tag on a conversational reply.
 
-**Known limitation — tag leakage**: the raw `<claude-say mood="...">...</claude-say>` tag will appear in the terminal scrollback above the rendered bubble, because Claude streams it before the Stop hook fires. This is an accepted UX trade-off for v1.
+**Known limitation — tag leakage**: the raw `<claudesay mood="...">...</claudesay>` tag will appear in the terminal scrollback above the rendered bubble, because Claude streams it before the Stop hook fires. This is an accepted UX trade-off for v1.
 
 ---
 
@@ -152,16 +152,16 @@ render.sh "<message>" "<mood>" ["<prop>" "<side>"]
 
 1. Sources `moods.sh` → resolves face string for mood
 2. Sources `tools.sh` → resolves prop string and side
-3. Sources user character override (`~/.claude/claude-say/character.sh`) or `characters/default.sh`
+3. Sources user character override (`~/.claude/claudesay/character.sh`) or `characters/default.sh`
 4. Wraps message text at 45 chars
 5. Assembles body line: `{left_or_prop}( body ){right_or_prop}` based on side
-6. Writes Unicode bubble + figure body to `/dev/tty` with ANSI colors
+6. Writes Unicode bubble + character body to `/dev/tty` with ANSI colors
 
 **Critical**: render.sh writes to `/dev/tty`, not stdout. Hook scripts own stdout — it must carry only the JSON hook response, never visual output. Mixing ASCII art into stdout corrupts the hook protocol.
 
 **`/dev/tty` guard**: render.sh must check `[[ -w /dev/tty ]]` before writing. In CI, `--print` mode, `ssh -T`, or Docker, `/dev/tty` is unavailable. On failure, exit silently — do not let the error surface to stderr. This is an interactive-terminal-only feature.
 
-**Emoji alignment**: emoji props (🔧 🪄 🔍 etc.) are 2 display cells wide; the ASCII hand `m` is 1 cell. This makes the body line 1 cell wider than the face/leg rows when a prop is active, causing visible torso misalignment. Implementation must pad the idle hand to 2 cells (`m ` with trailing space) to keep the figure column-aligned regardless of which side holds the prop.
+**Emoji alignment**: emoji props (🔧 🪄 🔍 etc.) are 2 display cells wide; the ASCII hand `m` is 1 cell. This makes the body line 1 cell wider than the face/leg rows when a prop is active, causing visible torso misalignment. Implementation must pad the idle hand to 2 cells (`m ` with trailing space) to keep the character column-aligned regardless of which side holds the prop.
 
 **Body line assembly:**
 
@@ -210,7 +210,7 @@ Each tool entry has a `side` field (`left`/`right`) controlling which hand holds
 **Chat reply (Stop hook):**
 ```
 ...Claude's full response above...
-<claude-say mood="excited">All 3 tests pass now!</claude-say>
+<claudesay mood="excited">All 3 tests pass now!</claudesay>
 
  ╭────────────────────────────────╮
  │   All 3 tests pass now!        │
@@ -253,7 +253,7 @@ Each tool entry has a `side` field (`left`/`right`) controlling which hand holds
 
 ## Character Customization
 
-Users create `~/.claude/claude-say/character.sh` exporting these variables:
+Users create `~/.claude/claudesay/character.sh` exporting these variables:
 
 ```bash
 CHAR_FACE_HAPPY="( ^ᵕ^  )"
@@ -277,18 +277,18 @@ CHAR_BOTTOM="    ||   ||\`~~>\n   (_)  (_)" # the rest of the character, can hav
 
 | Scenario | Behaviour |
 |---|---|
-| Claude omits `<claude-say>` tag | stop.sh exits silently — no duplicate output |
+| Claude omits `<claudesay>` tag | stop.sh exits silently — no duplicate output |
 | Multiple tags in one response | Take the last one |
 | Tool input path > 50 chars | Truncate with `…` |
 | Message > 45 chars wide | Wrap to multiple bubble lines |
-| Custom character missing a mood | Fall back to default figure expression |
+| Custom character missing a mood | Fall back to default character expression |
 | Custom character missing `CHAR_HAND_LEFT` or `CHAR_HAND_RIGHT` | Fall back to `m` for each |
 | Tool entry has no `side` or side is `—` | No prop shown, both hands rendered normally |
-| `jq` not installed | `/claude-say on` preflight check detects this and prints install instructions; hooks exit 0 silently if somehow reached |
+| `jq` not installed | `/claudesay on` preflight check detects this and prints install instructions; hooks exit 0 silently if somehow reached |
 | Flag absent | All hooks exit at line 2 — zero overhead |
 
 ---
 
 ## Caveman Compatibility
 
-`claude-say` stacks naturally with the caveman plugin. Caveman compresses the main response body; `claude-say` bubbles the separately-written summary tag. No conflict. README recommends `caveman-lite` as a complementary install.
+`claudesay` stacks naturally with the caveman plugin. Caveman compresses the main response body; `claudesay` bubbles the separately-written summary tag. No conflict. README recommends `caveman-lite` as a complementary install.

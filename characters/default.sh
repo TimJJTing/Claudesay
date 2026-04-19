@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Default ASCII figure body parts. Override any variable in
-# ~/.claude/claude-say/character.sh — missing vars fall back here.
+# Default ASCII character body parts. Override any variable in
+# ~/.claude/claudesay/character.sh — missing vars fall back here.
 
 CHAR_FACE_HAPPY_A="( ^ᵕ^  )"
 CHAR_FACE_HAPPY_B="( ᵕ‿ᵕ  )"

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# render.sh — write speech bubble + ASCII figure to /dev/tty (or CLAUDE_SAY_TTY).
+# render.sh — write speech bubble + ASCII character to /dev/tty (or CLAUDE_SAY_TTY).
 # Usage: render.sh "<message>" "<mood>" ["<prop>" "<side>"]
 set -euo pipefail
 
@@ -24,7 +24,7 @@ PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && p
 
 # Load defaults, then user override (missing vars in override fall back silently)
 source "${PLUGIN_ROOT}/characters/default.sh"
-USER_CHAR="${HOME}/.claude/claude-say/character.sh"
+USER_CHAR="${HOME}/.claude/claudesay/character.sh"
 [[ -f "$USER_CHAR" ]] && source "$USER_CHAR"
 
 source "${PLUGIN_ROOT}/lib/moods.sh"
