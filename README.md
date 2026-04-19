@@ -4,37 +4,35 @@ A Claude Code plugin that renders conversational replies as ASCII character spee
 
 ```
 ⏺ Skill(claudesay:claudesay)
-  ⎿  PreToolUse:Skill says:
-       ╭─────────╮
-       │ Skill   │
-       ╰─────┬───╯
-             │
-           /\___/\
+  ⎿ PreToolUse:Skill says:
 
-          ( ^▽^ )
-
-         🍳 (,,,) m
-
-
-           ||   ||`~~>
-          (_)  (_)
+ ╭──────────╮
+ │ Skill    │
+ ╰────────┬─╯
+         │
+                  
+      /\__/\      
+     ( ≧▽≦  )     
+   ╭╭( ,,,, )╮╮    
+   m ╭╭....╮╮ m   
+     ||    ||     
+    (_)    (_)╰~~>
 
 ⏺ Update(README.md)
-  ⎿  PreToolUse:Edit says:
-       ╭─────────────────────────────╮
-       │ Edit →                      │
-       │ /path/to/codebase/README.md │
-       ╰─────┬───────────────────────╯
-             │
-           /\___/\
+  ⎿ PreToolUse:Edit says:
 
-          ( -.- )
-
-         🔧 (,,,) m
-
-
-           ||   ||`~~>
-          (_)  (_)
+ ╭─────────────────────────────╮
+ │ Edit →                      │
+ │ /path/to/codebase/README.md │
+ ╰────────┬────────────────────╯
+         │
+                  
+      /\__/\      
+     ( -.-  )     
+  🔧═( ,,,, )╮╮    
+     ╭╭....╮╮ m   
+     ||    ||     
+    (_)    (_)╰~~>
 
 ```
 
@@ -98,65 +96,122 @@ Loose phrasing ("flip claudesay on, would ya?") will fall through to Claude. In 
 
 ## Character Customization
 
-The character is laid out on a fixed **3×3 grid of cells** (15 cols × 9 rows total). Each cell is its own variable — override just the parts you want; missing cells fall back to defaults.
+The character is a **3×3 grid of cells** (18 cols × 9 rows). Center column is 8 chars wide; side columns are 5 chars wide.
 
 ```
-  ┌─────┬─────┬─────┐
-  │ TL  │  T  │ TR  │  rows 0-1   ← top is 5×2
-  │     │ FACE│     │  row  2     ← face is 5×1 (mood-specific)
-  ├─────┼─────┼─────┤
-  │  L  │  B  │  R  │  rows 3-5
-  ├─────┼─────┼─────┤
-  │ BL  │ BT  │ BR  │  rows 6-8
-  └─────┴─────┴─────┘
+  ┌─────┬────────┬─────┐
+  │ TL  │  TOP   │ TR  │  rows 0-1   ← TOP is 8×2
+  │     │  FACE  │     │  row  2     ← FACE is 8×1 (mood-specific)
+  ├─────┼────────┼─────┤
+  │  L  │  BODY  │  R  │  rows 3-5
+  ├─────┼────────┼─────┤
+  │ BL  │  BOT   │ BR  │  rows 6-8
+  └─────┴────────┴─────┘
 ```
 
-Create `~/.claude/claudesay/character.sh` and override any subset:
+Create `~/.claude/claudesay/character.sh` and override any subset — missing vars fall back to the defaults below.
+
+### Dimension variables
 
 ```bash
-# Faces (5 chars × 1 line each)
-CHAR_FACE_HAPPY_A=" ^ᵕ^ "
-CHAR_FACE_HAPPY_B=" ᵕ‿ᵕ "
-CHAR_FACE_EXCITED_A=" ^▽^ "
-CHAR_FACE_EXCITED_B=" ≧▽≦ "
-CHAR_FACE_THINKING=" ._. "
-CHAR_FACE_FOCUSED=" -.- "
-CHAR_FACE_UPSET=" >_< "
-CHAR_FACE_ERROR=" x_x "
-
-# Grid cells (5 chars wide; height per layout above)
-CHAR_TOP_LEFT="
-
-    ("
-CHAR_TOP="/\\___"
-CHAR_TOP_RIGHT="/\\
-
-)"
-CHAR_LEFT="
-   m"
-CHAR_BODY="
-(,,,)"
-CHAR_RIGHT="
- m"
-CHAR_BOTTOM_LEFT="
-    |
-   (_"
-CHAR_BOTTOM="
-|   |
-)  (_"
-CHAR_BOTTOM_RIGHT="
-|\`~~>
-)"
+CHAR_SIDE_WIDTH=5      # cols for TL/TR/L/R/BL/BR
+CHAR_CENTER_WIDTH=8    # cols for TOP/FACE/BODY/BOT
+CHAR_CELL_HEIGHT=3     # rows for all cells except TOP
+CHAR_TOP_HEIGHT=2      # rows for TOP (FACE always occupies row 2)
 ```
 
-Cells shorter than the spec are right-padded with spaces and bottom-padded with blank rows automatically — write only the lines that matter.
+### Face expressions
 
-### Preview Script
-
-Iterate on your character without round-tripping through Claude Code:
+8 chars wide, parens included. Positive moods rotate between two variants.
 
 ```bash
-# Cycle every mood × {no prop, prop-left, prop-right}
+CHAR_FACE_HAPPY_A="( ^ᵕ^  )"
+CHAR_FACE_HAPPY_B="( ᵕ‿ᵕ  )"
+CHAR_FACE_EXCITED_A="( ^▽^  )"
+CHAR_FACE_EXCITED_B="( ≧▽≦  )"
+CHAR_FACE_THINKING="( ._.  )"
+CHAR_FACE_FOCUSED="( -.-  )"
+CHAR_FACE_UPSET="( >_<  )"
+CHAR_FACE_ERROR="( x_x  )"
+```
+
+### Grid cells
+
+Cells are right-padded to their column width and bottom-padded to their row count automatically — write only the lines that matter; trailing blank lines can be omitted.
+
+```bash
+# Top section (TL/TR: 5×3; TOP: 8×CHAR_TOP_HEIGHT)
+CHAR_TOP_LEFT="\
+     
+     
+     "
+
+CHAR_TOP="\
+        
+ /\__/\\ "
+
+CHAR_TOP_RIGHT="\
+     
+     
+     "
+
+# Body section (L/R: 5×3; BODY: 8×3)
+CHAR_LEFT="\
+   ╭╭
+   m 
+     "
+
+CHAR_BODY="\
+( ,,,, )
+╭╭....╮╮
+||    ||"
+
+CHAR_RIGHT="\
+╮╮    
+ m   
+     "
+
+# Bottom section (BL/BR: 5×3; BOT: 8×3)
+CHAR_BOTTOM_LEFT="\
+    (
+     
+     "
+
+CHAR_BOTTOM="\
+_)    (_
+        
+        "
+
+CHAR_BOTTOM_RIGHT="\
+)╰~~>
+     
+     "
+```
+
+### Prop cell templates
+
+When the character holds a tool prop, the left or right cell is replaced by an expanded template. `$prop` expands to the tool's emoji at render time.
+
+**Use single quotes** so `$prop` is not expanded when the file is sourced:
+
+```bash
+CHAR_PROP_LEFT='\
+  ${prop}═
+     
+     '
+
+CHAR_PROP_RIGHT='\
+═${prop}   
+     
+     '
+```
+
+### Preview script
+
+Iterate on your character without going through Claude:
+
+```bash
+# All moods × {no prop, prop-left, prop-right}
 bash bin/preview.sh
 
 # Single mood
@@ -165,8 +220,8 @@ bash bin/preview.sh focused
 # Mood holding a prop
 bash bin/preview.sh excited 🪄 right
 
-# Debug mode, will color each cell to help you with alignment
-bash bin/preview.sh --debug
+# Debug: color each cell to check alignment
+bash bin/preview.sh thinking 🔧 left --debug
 ```
 
 ### Props

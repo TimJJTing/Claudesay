@@ -8,7 +8,16 @@ TTY_FILE="$(mktemp)"
 export CLAUDE_SAY_TTY="$TTY_FILE"
 trap 'rm -f "$TTY_FILE"' EXIT
 
+source "$PLUGIN_ROOT/characters/default.sh"
+
 render() { bash "$PLUGIN_ROOT/lib/render.sh" "$@"; }
+
+# Compute expected bubble tail strings from dimension vars.
+_tail_col=$(( ${CHAR_SIDE_WIDTH:-5} + (${CHAR_CENTER_WIDTH:-8} / 2) ))
+_left_dashes=$(( _tail_col - 1 ))
+_left_str=$(printf '─%.0s' $(seq 1 $_left_dashes))
+_expected_tail="╰${_left_str}┬"
+_expected_short_bottom="╰${_left_str}┬─╯"
 
 echo "=== render.sh: basic bubble ==="
 render "Tests pass!" "happy"
@@ -17,7 +26,7 @@ assert_contains "bubble top border"    "$output" "╭"
 assert_contains "bubble content"       "$output" "Tests pass!"
 assert_contains "bubble bottom border" "$output" "╰"
 assert_contains "junction character"   "$output" "┬"
-assert_contains "bottom-left has 5 dashes before junction" "$output" "╰─────┬"
+assert_contains "bottom-left has $_left_dashes dashes before junction" "$output" "$_expected_tail"
 assert_contains "connector tail"       "$output" "│"
 assert_contains "char top outline"     "$output" "/\\"
 assert_contains "body (no prop)"       "$output" ","
@@ -50,7 +59,7 @@ export CLAUDE_SAY_TTY="$TTY_FILE"
 render "Hi" "happy"
 output=$(cat "$TTY_FILE"); > "$TTY_FILE"
 assert_contains "short msg junction" "$output" "┬"
-assert_contains "short msg bottom"   "$output" "╰─────┬───╯"
+assert_contains "short msg bottom"   "$output" "$_expected_short_bottom"
 
 echo ""
 echo "=== render.sh: no-tty guard ==="

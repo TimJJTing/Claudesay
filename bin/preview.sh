@@ -47,9 +47,9 @@ show() {
 print_legend() {
   [[ -n "${CLAUDESAY_DEBUG_COLORS:-}" ]] || return 0
   printf 'Cell legend: '
-  printf '\e[41m TL \e[0m \e[42m T \e[0m \e[43m TR \e[0m \e[45m FACE \e[0m '
-  printf '\e[44m L \e[0m \e[46m B \e[0m \e[101m R \e[0m '
-  printf '\e[102m BL \e[0m \e[103m BT \e[0m \e[105m BR \e[0m\n\n'
+  printf '\e[41m TL \e[0m \e[42m TOP \e[0m \e[43m TR \e[0m \e[45m FACE \e[0m '
+  printf '\e[44m L \e[0m \e[46m BODY \e[0m \e[101m R \e[0m '
+  printf '\e[102m BL \e[0m \e[103m BOT \e[0m \e[105m BR \e[0m\n\n'
 }
 
 print_legend

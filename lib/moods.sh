@@ -17,8 +17,8 @@ get_face() {
         && echo "${CHAR_FACE_EXCITED_A:-( ^▽^  )}" \
         || echo "${CHAR_FACE_EXCITED_B:-( ≧▽≦  )}"
       ;;
-    thinking) echo "${CHAR_FACE_THINKING:-( -.-  )}" ;;
-    focused)  echo "${CHAR_FACE_FOCUSED:-( ._.  )}"  ;;
+    thinking) echo "${CHAR_FACE_THINKING:-( ._.  )}" ;;
+    focused)  echo "${CHAR_FACE_FOCUSED:-( -.-  )}"  ;;
     upset)    echo "${CHAR_FACE_UPSET:-( >_<  )}"    ;;
     error)    echo "${CHAR_FACE_ERROR:-( x_x  )}"    ;;
     *)        echo "${CHAR_FACE_THINKING:-( ._.  )}" ;;

@@ -24,19 +24,19 @@ echo ""
 echo "=== assemble_character: dimensions ==="
 
 out=$(assemble_character "happy")
-line_count=$(printf '%s' "$out" | grep -c . || true)
 total_lines=$(printf '%s\n' "$out" | wc -l | tr -d ' ')
-assert_eq "produces exactly 9 lines" "$total_lines" "9"
+expected_lines=$(( CHAR_CELL_HEIGHT * 3 ))
+assert_eq "produces correct line count" "$total_lines" "$expected_lines"
 
-# Each line must be exactly 15 display columns wide (using char count for ASCII).
+expected_width=$(( CHAR_SIDE_WIDTH * 2 + CHAR_CENTER_WIDTH ))
 short_lines=0
 while IFS= read -r line; do
   clen=$(printf '%s' "$line" | wc -m | tr -d ' ')
-  if [[ "$clen" -lt 15 ]]; then
+  if [[ "$clen" -lt "$expected_width" ]]; then
     short_lines=$((short_lines + 1))
   fi
 done <<< "$out"
-assert_eq "no lines shorter than 15 chars" "$short_lines" "0"
+assert_eq "no lines shorter than expected width" "$short_lines" "0"
 
 # ── assemble_character: mood routing ─────────────────────────────────────────
 echo ""
@@ -55,15 +55,17 @@ assert_contains "error face appears" "$out" "x_x"
 echo ""
 echo "=== assemble_character: prop replacement ==="
 
+body_start=$(( CHAR_CELL_HEIGHT * 1 + 1 ))
+body_end=$(( CHAR_CELL_HEIGHT * 2 ))
+
 out=$(assemble_character "happy" "🔧" "left")
 assert_contains "prop appears in left position" "$out" "🔧"
-# Right hand 'm' still present; prop on left side replaces left cell.
-right_m=$(printf '%s\n' "$out" | sed -n '5p')
+right_m=$(printf '%s\n' "$out" | sed -n "${body_start},${body_end}p")
 assert_contains "right-hand m intact when prop on left" "$right_m" "m"
 
 out=$(assemble_character "happy" "🪄" "right")
 assert_contains "prop appears in right position" "$out" "🪄"
-left_m=$(printf '%s\n' "$out" | sed -n '5p')
+left_m=$(printf '%s\n' "$out" | sed -n "${body_start},${body_end}p")
 assert_contains "left-hand m intact when prop on right" "$left_m" "m"
 
 out=$(assemble_character "happy")
