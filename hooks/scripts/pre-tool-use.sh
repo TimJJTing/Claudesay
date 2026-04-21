@@ -16,6 +16,9 @@ FILE_PATH=$(printf '%s' "$INPUT" | jq -r '.tool_input.file_path // empty' 2>/dev
 
 [[ -n "$TOOL_NAME" ]] || { printf '%s\n' "$ALLOW"; exit 0; }
 
+source "${CLAUDE_PLUGIN_ROOT}/characters/default.sh"
+USER_CHAR="${HOME}/.claude/claudesay/character.sh"
+[[ -f "$USER_CHAR" ]] && source "$USER_CHAR"
 source "${CLAUDE_PLUGIN_ROOT}/lib/tools.sh"
 read -r PROP MOOD SIDE <<< "$(get_tool_info "$TOOL_NAME")"
 # tools.sh uses "none" as sentinel for empty prop/side on the default case.

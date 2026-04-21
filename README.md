@@ -13,9 +13,9 @@ A Claude Code plugin that renders conversational replies as ASCII character spee
                   
       /\__/\      
      ( ≧▽≦  )     
-   ╭╭( ,,,, )╮╮    
-   m ╭╭....╮╮ m   
-     ||    ||     
+   ╭╭: ,,,, :╮╮   
+   ○ (      ) ○   
+     (╭....╮)     
     (_)    (_)╰~~>
 
 ⏺ Update(README.md)
@@ -29,9 +29,9 @@ A Claude Code plugin that renders conversational replies as ASCII character spee
                   
       /\__/\      
      ( -.-  )     
-  🔧═( ,,,, )╮╮    
-     ╭╭....╮╮ m   
-     ||    ||     
+ 🔧○═: ,,,, :╮╮   
+     (      ) ○   
+     (╭....╮)     
     (_)    (_)╰~~>
 
 ```
@@ -158,17 +158,17 @@ CHAR_TOP_RIGHT="\
 # Body section (L/R: 5×3; BODY: 8×3)
 CHAR_LEFT="\
    ╭╭
-   m 
+   ○ 
      "
 
 CHAR_BODY="\
-( ,,,, )
-╭╭....╮╮
-||    ||"
+: ,,,, :
+(      )
+(╭....╮)"
 
 CHAR_RIGHT="\
-╮╮    
- m   
+╮╮   
+ ○   
      "
 
 # Bottom section (BL/BR: 5×3; BOT: 8×3)
@@ -196,15 +196,56 @@ When the character holds a tool prop, the left or right cell is replaced by an e
 
 ```bash
 CHAR_PROP_LEFT='\
-  ${prop}═
+ ${prop}○═
      
      '
 
 CHAR_PROP_RIGHT='\
-═${prop}   
+═○${prop}  
      
      '
 ```
+
+### Tool display config
+
+Each tool maps to a `"prop mood side"` triple that controls the emoji in the character's hand, the face expression, and which arm holds the prop. Override any entry in `~/.claude/claudesay/character.sh`:
+
+```bash
+# Make Bash feel more electric; hold it on the left
+TOOL_INFO_BASH="⚡ happy left"
+
+# Make all searches look pensive
+TOOL_INFO_SEARCH="🔭 thinking left"
+```
+
+Available variables and their defaults:
+
+| Variable | Default | Prop | Tools |
+|---|---|---|---|
+| `TOOL_INFO_EDIT` | `🔧 focused left` | 🔧 wrench | `Edit`, `Write` |
+| `TOOL_INFO_BASH` | `🪄 excited right` | 🪄 wand | `Bash` |
+| `TOOL_INFO_SEARCH` | `🔍 focused left` | 🔍 magnifying glass | `Grep`, `Glob`, `ToolSearch`, `LSP`, `Monitor` |
+| `TOOL_INFO_READ` | `📖 focused left` | 📖 book | `Read` |
+| `TOOL_INFO_WEB` | `📡 thinking right` | 📡 satellite dish | `WebFetch`, `WebSearch` |
+| `TOOL_INFO_AGENT` | `🤖 excited right` | 🤖 robot | `Agent` |
+| `TOOL_INFO_TODO` | `📋 focused left` | 📋 clipboard | `TodoWrite` |
+| `TOOL_INFO_ASK` | `🎤 excited right` | 🎤 microphone | `AskUserQuestion` |
+| `TOOL_INFO_CRON_CREATE` | `⏰ focused right` | ⏰ alarm clock | `CronCreate` |
+| `TOOL_INFO_CRON_DELETE` | `🔫 focused left` | 🔫 pistol | `CronDelete` |
+| `TOOL_INFO_CRON_LIST` | `📅 thinking left` | 📅 calendar | `CronList` |
+| `TOOL_INFO_PLAN_ENTER` | `🗺️ thinking left` | 🗺️ map | `EnterPlanMode` |
+| `TOOL_INFO_PLAN_EXIT` | `none excited right` | _(no prop)_ | `ExitPlanMode` |
+| `TOOL_INFO_WORKTREE` | `🌿 focused right` | 🌿 branch | `EnterWorktree`, `ExitWorktree` |
+| `TOOL_INFO_NOTEBOOK` | `📓 focused right` | 📓 notebook | `NotebookEdit` |
+| `TOOL_INFO_POWERSHELL` | `💠 focused right` | 💠 blue diamond | `PowerShell` |
+| `TOOL_INFO_MESSAGE` | `📨 excited right` | 📨 envelope | `SendMessage` |
+| `TOOL_INFO_SKILL` | `🍳 excited left` | 🍳 frying pan | `Skill` |
+| `TOOL_INFO_TASK_WRITE` | `📝 focused left` | 📝 memo | `TaskCreate` |
+| `TOOL_INFO_TASK_READ` | `📝 thinking left` | 📝 memo | `TaskGet`, `TaskList`, `TaskUpdate` |
+| `TOOL_INFO_TASK_STOP` | `none focused right` | _(no prop)_ | `TaskOutput`, `TaskStop` |
+| `TOOL_INFO_TEAM` | `💰 excited right` | 💰 money bag | `TeamCreate`, `TeamDelete` |
+| `TOOL_INFO_MCP` | `🔌 thinking left` | 🔌 plug | `ListMcpResourcesTool`, `ReadMcpResourceTool` |
+| `TOOL_INFO_DEFAULT` | `none happy none` | _(no prop)_ | all other tools |
 
 ### Preview script
 
@@ -223,33 +264,6 @@ bash bin/preview.sh excited 🪄 right
 # Debug: color each cell to check alignment
 bash bin/preview.sh thinking 🔧 left --debug
 ```
-
-### Props
-
-During tool calls the character holds a context-specific emoji prop. The prop replaces the **left or right cell** of the middle row depending on the tool. Other cells (body, opposite hand) stay intact.
-
-The prop is determined by the tool name; tools with no suitable hand-holdable prop render with both hands as normal. The current assignments are:
-
-| Tool(s)                                       | Prop                           |
-| --------------------------------------------- | ------------------------------ |
-| `Edit`, `Write`                               | 🔧 wrench                      |
-| `Bash`                                        | 🪄 wand                        |
-| `Grep`, `Glob`, `ToolSearch`                  | 🔍 magnifying glass            |
-| `Read`                                        | 📖 book                        |
-| `WebFetch`, `WebSearch`                       | 📡 satellite dish              |
-| `Agent`                                       | 🤖 robot                       |
-| `TodoWrite`                                   | 📋 clipboard                   |
-| `AskUserQuestion`                             | 🎤 microphone                  |
-| `CronCreate`                                  | ⏰ alarm clock                 |
-| `CronList`                                    | 📅 calendar                    |
-| `EnterPlanMode`                               | 🗺️ map                         |
-| `EnterWorktree`, `ExitWorktree`               | 🌿 branch                      |
-| `Monitor`                                     | 🔭 telescope                   |
-| `NotebookEdit`                                | 📓 notebook                    |
-| `SendMessage`                                 | 📨 envelope                    |
-| `TaskCreate`                                  | 📝 memo                        |
-| `ListMcpResourcesTool`, `ReadMcpResourceTool` | 🔌 plug                        |
-| All others                                    | _(no prop — both hands shown)_ |
 
 ## Architecture
 

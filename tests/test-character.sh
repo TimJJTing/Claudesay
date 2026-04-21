@@ -61,15 +61,15 @@ body_end=$(( CHAR_CELL_HEIGHT * 2 ))
 out=$(assemble_character "happy" "🔧" "left")
 assert_contains "prop appears in left position" "$out" "🔧"
 right_m=$(printf '%s\n' "$out" | sed -n "${body_start},${body_end}p")
-assert_contains "right-hand m intact when prop on left" "$right_m" "m"
+assert_contains "right-hand intact when prop on left" "$right_m" "○"
 
 out=$(assemble_character "happy" "🪄" "right")
 assert_contains "prop appears in right position" "$out" "🪄"
 left_m=$(printf '%s\n' "$out" | sed -n "${body_start},${body_end}p")
-assert_contains "left-hand m intact when prop on right" "$left_m" "m"
+assert_contains "left-hand intact when prop on right" "$left_m" "○"
 
 out=$(assemble_character "happy")
-left_count=$(printf '%s' "$out" | grep -o m | wc -l | tr -d ' ')
-assert_eq "no prop → both hands present" "$left_count" "2"
+hand_count=$(printf '%s' "$out" | grep -o "○" | wc -l | tr -d ' ')
+assert_eq "no prop → both hands present" "$hand_count" "2"
 
 print_summary
