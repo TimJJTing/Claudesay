@@ -11,12 +11,12 @@ mkdir -p "${CLAUDE_PROJECT_DIR}/.claude"
 FLAG="${CLAUDE_PROJECT_DIR}/.claude/.claudesay-active"
 trap 'rm -f "$TTY_FILE"; rm -rf "$CLAUDE_PROJECT_DIR"' EXIT
 
-# run_stop passes a response_preview string directly, matching the real Stop
-# hook input. Using response_preview avoids the one-turn delay caused by the
-# transcript being written AFTER the hook returns.
+# run_stop passes a last_assistant_message string directly, matching the
+# Stop hook input. Using last_assistant_message avoids the one-turn delay
+# caused by the transcript being written AFTER the hook returns.
 run_stop() {
-  local preview="$1"
-  jq -n --arg p "$preview" '{"response_preview":$p}' \
+  local msg="$1"
+  jq -n --arg p "$msg" '{"last_assistant_message":$p}' \
     | bash "$PLUGIN_ROOT/hooks/scripts/stop.sh"
 }
 
@@ -51,7 +51,7 @@ assert_contains "last tag wins" "$parsed" "second msg"
 > "$TTY_FILE"
 
 echo ""
-echo "=== stop.sh: empty response_preview → silent approve ==="
+echo "=== stop.sh: empty last_assistant_message → silent approve ==="
 out=$(run_stop '')
 assert_eq "returns approve on empty preview" "$out" '{"decision":"approve"}'
 

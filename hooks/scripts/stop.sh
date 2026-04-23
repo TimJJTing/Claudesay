@@ -11,10 +11,8 @@ if ! command -v jq &>/dev/null; then
   exit 0
 fi
 
-# Use response_preview (current turn, first 500 chars) instead of transcript.
-# The transcript is written AFTER the Stop hook returns, so transcript-based
-# extraction is always one turn behind.
-RESPONSE=$(printf '%s' "$INPUT" | jq -r '.response_preview // empty' 2>/dev/null || true)
+# Use last_assistant_message (the full text of the current turn's response)
+RESPONSE=$(printf '%s' "$INPUT" | jq -r '.last_assistant_message // empty' 2>/dev/null || true)
 
 if [[ -z "$RESPONSE" ]]; then
   printf '{"decision":"approve"}\n'
