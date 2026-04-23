@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+INPUT=$(cat)
+
 FLAG="${CLAUDE_PROJECT_DIR}/.claude/.claudesay-active"
 [[ -f "$FLAG" ]] || { printf '{"decision":"approve"}\n'; exit 0; }
 
@@ -9,37 +11,18 @@ if ! command -v jq &>/dev/null; then
   exit 0
 fi
 
-INPUT=$(cat)
-TRANSCRIPT=$(printf '%s' "$INPUT" | jq -r '.transcript_path // empty' 2>/dev/null || true)
+# Use response_preview (current turn, first 500 chars) instead of transcript.
+# The transcript is written AFTER the Stop hook returns, so transcript-based
+# extraction is always one turn behind.
+RESPONSE=$(printf '%s' "$INPUT" | jq -r '.response_preview // empty' 2>/dev/null || true)
 
-if [[ -z "$TRANSCRIPT" || ! -f "$TRANSCRIPT" ]]; then
-  printf '{"decision":"approve"}\n'
-  exit 0
-fi
-
-# Extract the last assistant text block from the JSONL transcript.
-# Claude Code transcripts wrap each turn under a "message" key:
-#   {"message": {"role": "assistant", "content": [...]}}
-LAST_MSG=$(jq -rs '
-  map(select(.message.role == "assistant"))
-  | if length == 0 then ""
-    else last
-      | .message.content
-      | if type == "array" then
-          map(select(.type == "text") | .text) | join("")
-        elif type == "string" then .
-        else ""
-        end
-    end
-' "$TRANSCRIPT" 2>/dev/null || true)
-
-if [[ -z "$LAST_MSG" ]]; then
+if [[ -z "$RESPONSE" ]]; then
   printf '{"decision":"approve"}\n'
   exit 0
 fi
 
 # Extract the last <claudesay> tag (POSIX grep -o, no -P needed).
-TAG=$(printf '%s' "$LAST_MSG" \
+TAG=$(printf '%s' "$RESPONSE" \
   | grep -o '<claudesay mood="[^"]*">[^<]*</claudesay>' \
   | tail -1 || true)
 
@@ -49,9 +32,6 @@ if [[ -n "$TAG" ]]; then
 
   RENDER="${CLAUDE_PLUGIN_ROOT}/lib/render.sh"
   if [[ -f "$RENDER" ]]; then
-    # Capture render into temp file so we can emit as systemMessage.
-    # Writing to /dev/tty gets clobbered when Claude Code's TUI redraws its
-    # dynamic region; systemMessage lands in permanent scrollback instead.
     TMP=$(mktemp)
     CLAUDE_SAY_TTY="$TMP" bash "$RENDER" "$MSG" "$MOOD" 2>/dev/null || true
     BUBBLE=$(cat "$TMP" 2>/dev/null || true)

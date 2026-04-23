@@ -1,6 +1,6 @@
 {
   "name": "claudesay",
-  "version": "2.0.2",
+  "version": "2.0.3",
   "description": "Renders Claude replies as ASCII character speech bubbles",
   "author": {
     "name": "TimJJTing"

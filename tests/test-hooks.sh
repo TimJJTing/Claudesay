@@ -11,59 +11,49 @@ mkdir -p "${CLAUDE_PROJECT_DIR}/.claude"
 FLAG="${CLAUDE_PROJECT_DIR}/.claude/.claudesay-active"
 trap 'rm -f "$TTY_FILE"; rm -rf "$CLAUDE_PROJECT_DIR"' EXIT
 
-# Helper: write a transcript in the Claude Code JSONL format.
-# Each entry wraps the message under a "message" key, matching what
-# ~/.claude/projects/<proj>/<session>.jsonl actually contains.
-make_transcript() {
-  local text="$1"
-  local tmp; tmp=$(mktemp)
-  jq -n '{"type":"user","message":{"role":"user","content":"hello"}}' >> "$tmp"
-  jq -n --arg t "$text" \
-    '{"message":{"role":"assistant","content":[{"type":"text","text":$t}]}}' >> "$tmp"
-  echo "$tmp"
-}
-
+# run_stop passes a response_preview string directly, matching the real Stop
+# hook input. Using response_preview avoids the one-turn delay caused by the
+# transcript being written AFTER the hook returns.
 run_stop() {
-  local transcript="$1"
-  printf '{"transcript_path":"%s"}\n' "$transcript" \
+  local preview="$1"
+  jq -n --arg p "$preview" '{"response_preview":$p}' \
     | bash "$PLUGIN_ROOT/hooks/scripts/stop.sh"
 }
 
 echo "=== stop.sh: flag absent → silent approve ==="
 rm -f "$FLAG"
-out=$(run_stop /dev/null)
+out=$(run_stop "hello <claudesay mood=\"happy\">hi</claudesay>")
 assert_eq "returns approve when flag absent" "$out" '{"decision":"approve"}'
 assert_eq "no tty output when flag absent" "$(cat "$TTY_FILE")" ""
 
 echo ""
 echo "=== stop.sh: flag present, tag found → emits systemMessage bubble ==="
 mkdir -p "$(dirname "$FLAG")"; touch "$FLAG"
-TRANSCRIPT=$(make_transcript 'Great job! <claudesay mood="excited">All 3 tests pass!</claudesay>')
-out=$(run_stop "$TRANSCRIPT")
+out=$(run_stop 'Great job! <claudesay mood="excited">All 3 tests pass!</claudesay>')
 assert_contains "returns approve decision" "$out" '"decision": "approve"'
 assert_contains "emits systemMessage key" "$out" '"systemMessage"'
 parsed=$(printf '%s' "$out" | jq -r '.systemMessage' 2>/dev/null || true)
 assert_contains "bubble content in systemMessage" "$parsed" "All 3 tests pass!"
 assert_eq "no direct tty write" "$(cat "$TTY_FILE")" ""
 > "$TTY_FILE"
-rm -f "$TRANSCRIPT"
 
 echo ""
 echo "=== stop.sh: flag present, no tag → silent approve ==="
-TRANSCRIPT=$(make_transcript 'Here is some code without a tag')
-out=$(run_stop "$TRANSCRIPT")
+out=$(run_stop 'Here is some code without a tag')
 assert_eq "returns approve when no tag" "$out" '{"decision":"approve"}'
 assert_eq "no tty output when no tag" "$(cat "$TTY_FILE")" ""
-rm -f "$TRANSCRIPT"
 
 echo ""
 echo "=== stop.sh: multiple tags → uses last one ==="
-TRANSCRIPT=$(make_transcript 'First <claudesay mood="happy">first msg</claudesay> then <claudesay mood="excited">second msg</claudesay>')
-out=$(run_stop "$TRANSCRIPT")
+out=$(run_stop 'First <claudesay mood="happy">first msg</claudesay> then <claudesay mood="excited">second msg</claudesay>')
 parsed=$(printf '%s' "$out" | jq -r '.systemMessage' 2>/dev/null || true)
 assert_contains "last tag wins" "$parsed" "second msg"
 > "$TTY_FILE"
-rm -f "$TRANSCRIPT"
+
+echo ""
+echo "=== stop.sh: empty response_preview → silent approve ==="
+out=$(run_stop '')
+assert_eq "returns approve on empty preview" "$out" '{"decision":"approve"}'
 
 echo ""
 echo "=== pre-tool-use.sh: flag absent → silent allow ==="
