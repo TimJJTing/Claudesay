@@ -14,7 +14,7 @@ render() { bash "$PLUGIN_ROOT/lib/render.sh" "$@"; }
 
 # Compute expected bubble tail strings from dimension vars.
 _tail_col=$(( ${CHAR_SIDE_WIDTH:-5} + (${CHAR_CENTER_WIDTH:-8} / 2) ))
-_left_dashes=$(( _tail_col - 1 ))
+_left_dashes=$(( _tail_col - 2 ))
 _left_str=$(printf '─%.0s' $(seq 1 $_left_dashes))
 _expected_tail="╰${_left_str}┬"
 _expected_short_bottom="╰${_left_str}┬─╯"

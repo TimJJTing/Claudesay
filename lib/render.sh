@@ -44,9 +44,10 @@ for l in "${LINES[@]+"${LINES[@]}"}"; do
 done
 
 # Bubble tail ┬ lands at the center of the center column (0-indexed TAIL_COL).
-# Formula: CHAR_SIDE_WIDTH + CHAR_CENTER_WIDTH/2. Default 5+4=9 → LEFT_DASHES=8.
+# Formula: CHAR_SIDE_WIDTH + CHAR_CENTER_WIDTH/2. Default 5+4=9 → LEFT_DASHES=7.
+# Bubble lines have a leading space before ╰, so LEFT_DASHES = TAIL_COL - 2.
 _TAIL_COL=$(( ${CHAR_SIDE_WIDTH:-5} + (${CHAR_CENTER_WIDTH:-8} / 2) ))
-_LEFT_DASHES=$(( _TAIL_COL - 1 ))
+_LEFT_DASHES=$(( _TAIL_COL - 2 ))
 _MIN_INNER=$(( _LEFT_DASHES + 2 ))  # guarantees at least 1 dash right of junction
 INNER=$(( MAX + 2 < _MIN_INNER ? _MIN_INNER : MAX + 2 ))
 TOP_BORDER=$(printf '─%.0s' $(seq 1 $INNER))
