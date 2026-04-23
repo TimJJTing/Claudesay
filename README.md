@@ -85,8 +85,8 @@ If you commit your project's `.claude/` directory, you should probably ignore th
 
 Toggle on or off with one of the recognized phrases:
 
-- `turn on claudesay` / `enable claudesay` / `activate claudesay`
-- `turn off claudesay` / `disable claudesay` / `hide claudesay`
+- `turn on claudesay` / `enable claudesay` / `activate claudesay` / `start claudesay`
+- `turn off claudesay` / `disable claudesay` / `hide claudesay` / `stop claudesay`
 - `toggle claudesay`
 - `claudesay status` / `is claudesay on?`
 
@@ -95,6 +95,10 @@ Toggle on or off with one of the recognized phrases:
 Loose phrasing ("flip claudesay on, would ya?") will fall through to Claude. In that case the skill tells Claude to point you at the recognized phrase — it will not attempt to toggle via a Bash call.
 
 ## Character Customization
+
+Create `~/.claude/claudesay/character.sh` and override any subset of variables — missing vars fall back to the defaults.
+
+### Grid layout
 
 The character is a **3×3 grid of cells** (18 cols × 9 rows). Center column is 8 chars wide; side columns are 5 chars wide.
 
@@ -108,8 +112,6 @@ The character is a **3×3 grid of cells** (18 cols × 9 rows). Center column is 
   │ BL  │  BOT   │ BR  │  rows 6-8
   └─────┴────────┴─────┘
 ```
-
-Create `~/.claude/claudesay/character.sh` and override any subset — missing vars fall back to the defaults below.
 
 ### Dimension variables
 
@@ -268,14 +270,14 @@ bash bin/preview.sh thinking 🔧 left --debug
 
 ## Architecture
 
-All behavior is in hooks (declared inline in `.claude-plugin/plugin.json`):
+All behavior is in hooks (registered in `.claude-plugin/plugin.json`, implemented as external Bash scripts):
 
-| Hook               | Script                           | Responsibility                                                                            |
-| ------------------ | -------------------------------- | ----------------------------------------------------------------------------------------- |
-| `SessionStart`     | `hooks/scripts/session-start.sh` | Injects the `<claudesay-protocol>` instruction as additional context when the flag is on. |
-| `UserPromptSubmit` | `hooks/scripts/prompt-submit.sh` | Handles toggle/status intents in-hook; emits the per-turn reminder on other prompts.      |
-| `PreToolUse`       | `hooks/scripts/pre-tool-use.sh`  | Renders the tool-holding character before each tool call.                                 |
-| `Stop`             | `hooks/scripts/stop.sh`          | Parses the `<claudesay>` tag from the JSONL transcript and renders the speech bubble.     |
+| Hook               | Script                           | Responsibility                                                                                          |
+| ------------------ | -------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| `SessionStart`     | `hooks/scripts/session-start.sh` | Injects the `<claudesay-protocol>` instruction as additional context when the flag is on.               |
+| `UserPromptSubmit` | `hooks/scripts/prompt-submit.sh` | Handles toggle/status intents in-hook; emits the per-turn reminder on other prompts.                    |
+| `PreToolUse`       | `hooks/scripts/pre-tool-use.sh`  | Renders the tool-holding character before each tool call.                                               |
+| `Stop`             | `hooks/scripts/stop.sh`          | Extracts the `<claudesay>` tag from `last_assistant_message` and renders the speech bubble.             |
 
 The skill at `skills/claudesay/SKILL.md` is documentation/fallback only — it does not run Bash.
 
@@ -285,7 +287,19 @@ The skill at `skills/claudesay/SKILL.md` is documentation/fallback only — it d
 
 Yes, but not much. The plugin adds a small instruction to the conversation at session start (~120 tokens) plus a short per-turn reminder (~20 tokens). The `<claudesay>` tag Claude writes in its reply also costs a few output tokens per turn. In practice the overhead is negligible — well under 1 % of a typical conversation's total token usage.
 
-The hooks themselves (rendering, toggling, reading the transcript) are pure Bash and do not make any API calls, so they cost zero tokens.
+The hooks themselves (rendering, toggling, reading the response) are pure Bash and do not make any API calls, so they cost zero tokens.
+
+### Does the ASCII character art occupy context?
+
+No. The rendered ASCII art (the speech bubble, the character figure, the grid) is produced entirely by the shell scripts and displayed to you via `systemMessage` — a transient notification that is **not** fed back into Claude's conversation history. Claude never sees the rendered output.
+
+The only things that actually enter context are:
+
+- The `<claudesay-protocol>` instruction injected at session start (~120 tokens).
+- The short per-turn reminder hint (~20 tokens).
+- The `<claudesay mood="…">…</claudesay>` tag that Claude writes in its own reply (a few output tokens).
+
+The 87-line character definition, the grid rendering logic, and the final ASCII art all live purely in shell-land and cost zero context tokens.
 
 ### Why does the bubble not always appear?
 
