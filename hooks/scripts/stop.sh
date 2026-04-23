@@ -18,11 +18,13 @@ if [[ -z "$TRANSCRIPT" || ! -f "$TRANSCRIPT" ]]; then
 fi
 
 # Extract the last assistant text block from the JSONL transcript.
+# Claude Code transcripts wrap each turn under a "message" key:
+#   {"message": {"role": "assistant", "content": [...]}}
 LAST_MSG=$(jq -rs '
-  map(select(.role == "assistant"))
+  map(select(.message.role == "assistant"))
   | if length == 0 then ""
     else last
-      | .content
+      | .message.content
       | if type == "array" then
           map(select(.type == "text") | .text) | join("")
         elif type == "string" then .

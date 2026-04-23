@@ -11,12 +11,15 @@ mkdir -p "${CLAUDE_PROJECT_DIR}/.claude"
 FLAG="${CLAUDE_PROJECT_DIR}/.claude/.claudesay-active"
 trap 'rm -f "$TTY_FILE"; rm -rf "$CLAUDE_PROJECT_DIR"' EXIT
 
-# Helper: write a minimal transcript JSONL and return its path
+# Helper: write a transcript in the Claude Code JSONL format.
+# Each entry wraps the message under a "message" key, matching what
+# ~/.claude/projects/<proj>/<session>.jsonl actually contains.
 make_transcript() {
   local text="$1"
   local tmp; tmp=$(mktemp)
-  printf '{"role":"user","content":"hello"}\n' >> "$tmp"
-  jq -n --arg t "$text" '{"role":"assistant","content":[{"type":"text","text":$t}]}' >> "$tmp"
+  jq -n '{"type":"user","message":{"role":"user","content":"hello"}}' >> "$tmp"
+  jq -n --arg t "$text" \
+    '{"message":{"role":"assistant","content":[{"type":"text","text":$t}]}}' >> "$tmp"
   echo "$tmp"
 }
 
