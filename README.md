@@ -172,6 +172,12 @@ Buddy was a Tamagotchi-style virtual pet — a companion you hatch and tend to. 
 - Figures do not render in CI, `--print` mode, or non-interactive SSH sessions.
 - Per-turn reminder adds ~20 tokens per turn.
 - **Caveman mode (and similar terse plugins) drops pronouns.** [Caveman's](https://github.com/JuliusBrussee/caveman) `full`/`ultra` modes allow fragments, which causes pronouns to drop as emergent behavior. The claudesay protocol encourages active voice with natural pronoun use — caveman may counteract this. Use `/caveman lite` if you want caveman + claudesay together with more natural phrasing.
+- **Stop-hook bubble is prefixed with "Stop says:" in the terminal scrollback.** Claude Code wraps any `systemMessage` returned by a Stop hook with this label — it is enforced by the runtime and cannot be suppressed via the hook response.
+
+  **Why we stop here:** the natural alternative — writing the bubble directly to `/dev/tty` — was tried and abandoned. Claude Code's TUI redraws its dynamic region immediately after the Stop hook returns, clobbering anything written to `/dev/tty` (`hooks/scripts/stop.sh`, commit `313b617`). `systemMessage` lands in permanent scrollback instead and survives the redraw; the trade-off is the label.
+
+  **If Claude Code ever exposes a hook output field that renders without a label** (or a `PostStop` moment after the TUI has settled), writing directly to `/dev/tty` would remove the label with no other changes needed — `lib/render.sh` already supports this path.
+
 - **Stop-hook bubble reflects only the final assistant text block of a turn.** The Stop hook reads `.last_assistant_message` and grabs the last `<claudesay>` tag in it (`hooks/scripts/stop.sh`, `tail -1`). If Claude emits multiple conversational text messages in one turn (text → tool → text → tool → text), only the tag in the last block renders.
 
   **Why we stop here:** the injected protocol (`hooks/scripts/session-start.sh`) instructs Claude to emit a single tag *at the very end*, covering the whole turn in a few sentences. One well-written bubble usually describes the turn in full, making multi-bubble rendering redundant for the intended use case.
