@@ -106,180 +106,6 @@ Toggle on or off with one of the recognized phrases:
 
 Loose phrasing ("flip claudesay on, would ya?") will fall through to Claude. In that case the skill tells Claude to point you at the recognized phrase — it will not attempt to toggle via a Bash call.
 
-## Character Customization
-
-Create `~/.claude/claudesay/character.sh` and override any subset of variables — missing vars fall back to the defaults.
-
-### Grid layout
-
-The character is a **3×3 grid of cells** (18 cols × 9 rows). Center column is 8 chars wide; side columns are 5 chars wide.
-
-```
-  ┌─────┬────────┬─────┐
-  │ TL  │  TOP   │ TR  │  rows 0-1   ← TOP is 8×2
-  │     │  FACE  │     │  row  2     ← FACE is 8×1 (mood-specific)
-  ├─────┼────────┼─────┤
-  │  L  │  BODY  │  R  │  rows 3-5
-  ├─────┼────────┼─────┤
-  │ BL  │  BOT   │ BR  │  rows 6-8
-  └─────┴────────┴─────┘
-```
-
-### Dimension variables
-
-```bash
-CHAR_SIDE_WIDTH=5      # cols for TL/TR/L/R/BL/BR
-CHAR_CENTER_WIDTH=8    # cols for TOP/FACE/BODY/BOT
-CHAR_CELL_HEIGHT=3     # rows for all cells except TOP
-CHAR_TOP_HEIGHT=2      # rows for TOP (FACE always occupies row 2)
-```
-
-### Face expressions
-
-8 chars wide, parens included. Positive moods rotate between two variants.
-
-```bash
-CHAR_FACE_HAPPY_A="( ^ᵕ^  )"
-CHAR_FACE_HAPPY_B="( ᵕ‿ᵕ  )"
-CHAR_FACE_EXCITED_A="( ^▽^  )"
-CHAR_FACE_EXCITED_B="( ≧▽≦  )"
-CHAR_FACE_THINKING="( ._.  )"
-CHAR_FACE_FOCUSED="( -.-  )"
-CHAR_FACE_UPSET="( >_<  )"
-CHAR_FACE_ERROR="( x_x  )"
-```
-
-### Grid cells
-
-Cells are right-padded to their column width and bottom-padded to their row count automatically — write only the lines that matter; trailing blank lines can be omitted.
-
-```bash
-# Top section (TL/TR: 5×3; TOP: 8×CHAR_TOP_HEIGHT)
-CHAR_TOP_LEFT="\
-     
-     
-     "
-
-CHAR_TOP="\
-        
- /\__/\\ "
-
-CHAR_TOP_RIGHT="\
-     
-     
-     "
-
-# Body section (L/R: 5×3; BODY: 8×3)
-CHAR_LEFT="\
-   ╭╭
-   ○ 
-     "
-
-CHAR_BODY="\
-: ,,,, :
-(      )
-(╭....╮)"
-
-CHAR_RIGHT="\
-╮╮   
- ○   
-     "
-
-# Bottom section (BL/BR: 5×3; BOT: 8×3)
-CHAR_BOTTOM_LEFT="\
-    (
-     
-     "
-
-CHAR_BOTTOM="\
-_)    (_
-        
-        "
-
-CHAR_BOTTOM_RIGHT="\
-)╰~~>
-     
-     "
-```
-
-### Prop cell templates
-
-When the character holds a tool prop, the left or right cell is replaced by an expanded template. `$prop` expands to the tool's emoji at render time.
-
-**Use single quotes** so `$prop` is not expanded when the file is sourced:
-
-```bash
-CHAR_PROP_LEFT='\
- ${prop}○═
-     
-     '
-
-CHAR_PROP_RIGHT='\
-═○${prop}  
-     
-     '
-```
-
-### Tool display config
-
-Each tool maps to a `"prop mood side"` triple that controls the emoji in the character's hand, the face expression, and which arm holds the prop. Override any entry in `~/.claude/claudesay/character.sh`:
-
-```bash
-# Make Bash feel more electric; hold it on the left
-TOOL_INFO_BASH="⚡ happy left"
-
-# Make all searches look pensive
-TOOL_INFO_SEARCH="🔭 thinking left"
-```
-
-Available variables and their defaults:
-
-| Variable | Default | Prop | Tools |
-|---|---|---|---|
-| `TOOL_INFO_EDIT` | `🔧 focused left` | 🔧 wrench | `Edit`, `Write` |
-| `TOOL_INFO_BASH` | `🪄 excited right` | 🪄 wand | `Bash` |
-| `TOOL_INFO_SEARCH` | `🔍 focused left` | 🔍 magnifying glass | `Grep`, `Glob`, `ToolSearch`, `LSP` |
-| `TOOL_INFO_MONITOR` | `🔭 thinking left` | 🔭 telescope | `Monitor` |
-| `TOOL_INFO_READ` | `📖 focused left` | 📖 book | `Read` |
-| `TOOL_INFO_WEB` | `📡 thinking right` | 📡 satellite dish | `WebFetch`, `WebSearch` |
-| `TOOL_INFO_AGENT` | `🤖 excited right` | 🤖 robot | `Agent` |
-| `TOOL_INFO_TODO` | `📋 focused left` | 📋 clipboard | `TodoWrite` |
-| `TOOL_INFO_ASK` | `🎤 excited right` | 🎤 microphone | `AskUserQuestion` |
-| `TOOL_INFO_CRON_CREATE` | `⏰ focused right` | ⏰ alarm clock | `CronCreate` |
-| `TOOL_INFO_CRON_DELETE` | `🔫 focused left` | 🔫 pistol | `CronDelete` |
-| `TOOL_INFO_CRON_LIST` | `📅 thinking left` | 📅 calendar | `CronList` |
-| `TOOL_INFO_PLAN_ENTER` | `🗺️ thinking left` | 🗺️ map | `EnterPlanMode` |
-| `TOOL_INFO_PLAN_EXIT` | `none excited right` | _(no prop)_ | `ExitPlanMode` |
-| `TOOL_INFO_WORKTREE` | `🌿 focused right` | 🌿 branch | `EnterWorktree`, `ExitWorktree` |
-| `TOOL_INFO_NOTEBOOK` | `📓 focused right` | 📓 notebook | `NotebookEdit` |
-| `TOOL_INFO_POWERSHELL` | `💠 focused right` | 💠 blue diamond | `PowerShell` |
-| `TOOL_INFO_MESSAGE` | `📨 excited right` | 📨 envelope | `SendMessage` |
-| `TOOL_INFO_SKILL` | `🍳 excited left` | 🍳 frying pan | `Skill` |
-| `TOOL_INFO_TASK_WRITE` | `📝 focused left` | 📝 memo | `TaskCreate` |
-| `TOOL_INFO_TASK_READ` | `📝 thinking left` | 📝 memo | `TaskGet`, `TaskList`, `TaskUpdate` |
-| `TOOL_INFO_TASK_STOP` | `none focused right` | _(no prop)_ | `TaskOutput`, `TaskStop` |
-| `TOOL_INFO_TEAM` | `💰 excited right` | 💰 money bag | `TeamCreate`, `TeamDelete` |
-| `TOOL_INFO_MCP` | `🔌 thinking left` | 🔌 plug | `ListMcpResourcesTool`, `ReadMcpResourceTool` |
-| `TOOL_INFO_DEFAULT` | `none happy none` | _(no prop)_ | all other tools |
-
-### Preview script
-
-Iterate on your character without going through Claude:
-
-```bash
-# All moods × {no prop, prop-left, prop-right}
-bash bin/preview.sh
-
-# Single mood
-bash bin/preview.sh focused
-
-# Mood holding a prop
-bash bin/preview.sh excited 🪄 right
-
-# Debug: color each cell to check alignment
-bash bin/preview.sh thinking 🔧 left --debug
-```
-
 ## Architecture
 
 All behavior is in hooks (registered in `.claude-plugin/plugin.json`, implemented as external Bash scripts):
@@ -293,6 +119,11 @@ All behavior is in hooks (registered in `.claude-plugin/plugin.json`, implemente
 
 The skill at `skills/claudesay/SKILL.md` is documentation/fallback only — it does not run Bash.
 
+
+## Character Customization
+
+See [CHARACTER_CUSTOMIZATION.md](CHARACTER_CUSTOMIZATION.md) for detailed customization options including grid layout, dimension variables, face expressions, grid cells, prop templates, tool display config, and the preview script.
+
 ## FAQ
 
 ### Does it consume my tokens?
@@ -303,7 +134,7 @@ The hooks themselves (rendering, toggling, reading the response) are pure Bash a
 
 ### Does the ASCII character art occupy context?
 
-No. The rendered ASCII art (the speech bubble, the character figure, the grid) is produced entirely by the shell scripts and displayed to you via `systemMessage` — a transient notification that is **not** fed back into Claude's conversation history. Claude never sees the rendered output.
+No. The rendered ASCII art (the speech bubble, the character figure, the grid) is produced entirely by the shell scripts and displayed to you via `systemMessage` — a transient notification that is **not** fed back into Claude's conversation context/history. Claude never sees the rendered output.
 
 The only things that actually enter context are:
 
@@ -377,8 +208,78 @@ Buddy was a Tamagotchi-style virtual pet — a companion you hatch and tend to. 
 
 ## Development
 
-Run the test suite locally:
+### Project Structure
+
+```
+claudesay/
+├── .claude-plugin/                 # Plugin metadata and marketplace config
+│   ├── plugin.json                 # Hook registrations, plugin manifest
+│   └── marketplace.json            # Marketplace registration details
+├── .claude/                        # Claude Code project settings
+│   └── settings.local.json         # Local environment overrides
+├── bin/                            # Utilities and preview tools
+│   └── preview.sh                  # Character preview script for development
+├── characters/                     # Character preset definitions
+│   └── default.sh                  # Default character (cat) definition
+├── hooks/                          # Lifecycle hook implementations
+│   └── scripts/
+│       ├── session-start.sh        # Injects protocol instruction when flag is on
+│       ├── prompt-submit.sh        # Handles toggle intents; emits per-turn reminder
+│       ├── pre-tool-use.sh         # Renders character with tool prop before each tool call
+│       └── stop.sh                 # Extracts <claudesay> tag and renders speech bubble
+├── lib/                            # Shared utility modules
+│   ├── character.sh                # Character grid rendering logic
+│   ├── moods.sh                    # Mood-to-expression mapping
+│   ├── render.sh                   # Bubble and ASCII art rendering
+│   └── tools.sh                    # Tool-to-emoji and mood mapping
+├── skills/                         # Claude Code skill documentation
+│   └── claudesay/
+│       └── SKILL.md                # User-facing skill docs (fallback only)
+├── tests/                          # Test suite
+│   ├── run-all.sh                  # Test runner (runs all test-*.sh)
+│   ├── assert.sh                   # Test assertion utilities
+│   ├── test-character.sh           # Character grid tests
+│   ├── test-data-layer.sh          # Tool/mood mapping tests
+│   ├── test-hooks.sh               # Hook integration tests
+│   └── test-render.sh              # Rendering logic tests
+├── docs/                           # Design and specification docs
+│   └── superpowers/specs/
+│       └── 2026-04-17-claude-say-design.md  # Architecture and design spec
+├── README.md                       # This file
+└── CHARACTER_CUSTOMIZATION.md      # Character customization guide
+```
+
+### Key Files
+
+**Plugin Configuration:**
+- `plugin.json` — Registers the four hooks (`SessionStart`, `UserPromptSubmit`, `PreToolUse`, `Stop`) that drive all behavior.
+
+**Hook Scripts:**
+- `session-start.sh` — Injects the claudesay protocol instruction into the system prompt when the feature flag is active.
+- `prompt-submit.sh` — Intercepts toggle commands (e.g., "turn on claudesay") before Claude sees them; blocks the prompt and flips the flag file directly. On other prompts, appends a reminder.
+- `pre-tool-use.sh` — Looks up the tool name in `TOOL_INFO_*` variables and renders the character holding the corresponding emoji prop.
+- `stop.sh` — Extracts the last `<claudesay mood="...">` tag from Claude's reply and renders the speech bubble with the appropriate face.
+
+**Shared Modules (lib/):**
+- `character.sh` — Grid layout engine; handles padding, cell positioning, and prop overlays.
+- `moods.sh` — Maps mood names to face expressions; includes happy/excited alternation for visual variety.
+- `render.sh` — Renders the speech bubble and combines it with the character figure.
+- `tools.sh` — Maps Claude Code tools to emoji props, moods, and hand sides; sourced by hooks and preview.
+
+**Testing:**
+- `test-hooks.sh` — Integration tests for hook behavior (toggle detection, transcript parsing).
+- `test-render.sh` — Unit tests for speech bubble and character rendering.
+- `test-character.sh` — Grid cell alignment and padding tests.
+- `test-data-layer.sh` — Tool/mood mapping validation.
+
+### Running Tests
 
 ```bash
 bash tests/run-all.sh
+```
+
+Run a single test file:
+
+```bash
+bash tests/test-render.sh
 ```
