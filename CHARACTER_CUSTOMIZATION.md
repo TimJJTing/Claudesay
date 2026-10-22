@@ -6,6 +6,8 @@ You can change the character with a JSON file. Put the file at this path:
 ~/.claude/claudesay/character.json
 ```
 
+The file is optional. If there is no file, the mod uses the default character and shows no message.
+
 Write only the fields that you want to change. The mod uses the default value for each field that is not in the file.
 
 The mod reads the file when a session starts and when each turn starts. Thus a change shows on the next turn. You do not have to restart the session.

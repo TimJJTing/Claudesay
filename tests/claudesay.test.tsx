@@ -286,6 +286,32 @@ test('a bad character.json keeps the default character and shows one toast', asy
   await ui.unmount()
 })
 
+test('no character.json gives the default character and no toast', async ($, on) => {
+  engine(on)
+  let reads = 0
+  on('fs.stat', () => {
+    throw Object.assign(new Error('ENOENT: no such file'), { code: 'ENOENT' })
+  })
+  on('fs.read', () => {
+    reads++
+    return { value: '{}' }
+  })
+  const toasts: string[] = []
+  on('ui.toast', (_, e) => {
+    toasts.push(e.text)
+    return { value: undefined }
+  })
+  await $.session.start({ cwd: '/', surface: 'terminal', isInteractive: true })
+  await turn($, 't1', ANSWER)
+  await turn($, 't2', ANSWER)
+
+  expect(reads).toBe(0)
+  expect(toasts.length).toBe(0)
+  const ui = await $.ui.mount({ ...BAND(), surface: 'terminal' })
+  expect(await ui.find({ type: 'Text', text: /33 tests pass/ })).toBeDefined()
+  await ui.unmount()
+})
+
 test('a character.json that is too large is not read', async ($, on) => {
   engine(on)
   let reads = 0

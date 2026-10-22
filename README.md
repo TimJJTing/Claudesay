@@ -137,7 +137,7 @@ The tag restates the final text block of the reply, the text immediately before 
 
 ### The history stays complete
 
-The tag repeats the reply. The bubble shows only the newest line, so the reply must hold all of the information. Three rules make sure of this:
+The tag repeats the reply. The bubble shows only the newest line, so the reply must hold all of the information. Five rules make sure of this:
 
 1. The protocol tells Claude to put every fact, warning and question in the reply text, and never in the tag only.
 2. The mod examines the tag before it removes it. If the tag has a link, a domain name, a number, a path, a code span or a command word (for example `curl` or `sudo`) that the final text block does not have as a whole word, the mod does not remove the tag. The tag stays visible in the reply, and the band does not show it. The mod also keeps a tag that asks for consent, for example `[y/N]` or "type y", if the reply does not ask for it.
@@ -244,6 +244,7 @@ claudesay/
 ├── .claude-plugin/
 │   ├── plugin.json           # Plugin manifest. Names the state contract and the mode option.
 │   ├── marketplace.json      # Makes this repository a marketplace.
+│   ├── icon.png              # Plugin icon: the default character, 1024 × 1024.
 │   └── types/                # Claude Code writes this folder. Git ignores it.
 ├── hooks/
 │   ├── hooks.json            # Names the hooks module.
