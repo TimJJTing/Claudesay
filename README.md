@@ -1,291 +1,295 @@
 # claudesay
 
-A Claude Code plugin that renders conversational replies as ASCII character speech bubbles in the terminal. Tool-use events show the character holding a relevant prop with a context-appropriate face expression. Inspired by cowsay. Just for fun.
+claudesay is a Claude Code mod. It shows an ASCII character in the band above the prompt. After a conversational reply, the character says the main point of the reply in a speech bubble. Claude writes this line itself. While Claude uses a tool, the character holds a prop for that tool. The idea comes from cowsay. claudesay is for fun.
+
+After a reply, the band shows this:
 
 ```
-⏺ Hey! claudesay is live and working.
-  ⎿  Stop says:
-      ╭──────────────────────────────────────╮
-      │ Hey! claudesay is live and working.  │
-      ╰───────┬──────────────────────────────╯
-              │
+ ╭─────────────────────────────────────────────╮
+ │ I updated the README and all tests pass. Do │
+ │ you want a commit?                          │
+ ╰───────┬─────────────────────────────────────╯
+         │
 
-           /\__/\
-          ( ᵕ‿ᵕ  )
-        ╭╭: ,,,, :╮╮
-        ○ (      ) ○
-          (╭....╮)
-         (_)    (_)╰~~>
-
-⏺ Skill(claudesay:claudesay)
-  ⎿  PreToolUse:Skill says:
-      ╭─────────╮
-      │ Skill   │
-      ╰───────┬─╯
-              │
-
-           /\__/\
-          ( ≧▽≦  )
-      🍳○═: ,,,, :╮╮
-          (      ) ○
-          (╭....╮)
-         (_)    (_)╰~~>
-
-⏺ Update(path/to/project/README.md)
-  ⎿  PreToolUse:Edit says:
-      ╭────────────────────────────╮
-      │ Edit →                     │
-      │ /path/to/project/README.md │
-      ╰───────┬────────────────────╯
-              │
-
-           /\__/\
-          ( -.-  )
-      🔧○═: ,,,, :╮╮
-          (      ) ○
-          (╭....╮)
-         (_)    (_)╰~~>
-
+      /\__/\
+     ( ᵕ‿ᵕ  )
+   ╭╭: ,,,, :╮╮
+   ○ (      ) ○
+     (╭....╮)
+    (_)    (_)╰~~>
 ```
 
-## How It Works
+While a tool runs, the band shows the tool and a prop:
 
-claudesay is built entirely on [Claude Code hooks](https://docs.anthropic.com/en/docs/claude-code/hooks) — small shell scripts that run at specific points in Claude's lifecycle. No external server, no background process, just four Bash scripts that react to events:
+```
+ ╭────────────────────────╮
+ │ Edit → /repo/README.md │
+ ╰───────┬────────────────╯
+         │
 
-1. **Session starts →** A short instruction is injected into the conversation telling Claude to end chatty replies with a `<claudesay>` tag containing a mood and a brief summary of the turn.
+      /\__/\
+     ( -.-  )
+ 🔧○═: ,,,, :╮╮
+     (      ) ○
+     (╭....╮)
+    (_)    (_)╰~~>
+```
 
-2. **You send a prompt →** The hook checks whether you typed a toggle command (like `turn on claudesay`). If so, it flips the flag file and blocks Claude's turn entirely — Claude never sees the message. For anything else, it appends a short reminder so Claude remembers to include the tag.
-
-3. **Claude calls a tool →** Before each tool call, the hook looks up the tool name, picks an emoji prop and a mood, and renders the character holding that prop (e.g. 🔧 for edits, 🔍 for search).
-
-4. **Claude finishes its reply →** The hook reads the conversation transcript, extracts the `<claudesay>` tag from the last assistant message, and renders the speech bubble with the appropriate face.
-
-All rendering is pure Bash — the script draws a Unicode box around the message text and prints the ASCII character underneath. Nothing is sent over the network; everything happens locally in your terminal.
+There is one character. Each new turn replaces it. claudesay does not add rows to the transcript. When you scroll back, each reply has all of its information. Refer to [The history stays complete](#the-history-stays-complete).
 
 ## Requirements
 
-- macOS or Linux (interactive terminal required — no CI/Docker support)
-- `jq` installed (`brew install jq` / `apt install jq`)
+- Claude Code 2.1.287 or later. Mods do not work in earlier versions.
+- An interactive session in the terminal or in the desktop app.
+
+claudesay does not need Bash or `jq`.
 
 ## Install
 
-Register this repo as a marketplace, then install the plugin.
+1. In a Claude Code session, type this command:
+
+   ```
+   /plugin install claudesay --marketplace TimJJTing/claudesay
+   ```
+
+2. When Claude Code asks `Add marketplace?`, type `y`.
+3. Select a scope. The user scope is the default.
+
+The mod starts immediately. You do not have to restart the session.
+
+To install from a shell, use this command:
 
 ```bash
-# From inside the repo checkout:
-claude plugin marketplace add TimJJTing/claudesay
-claude plugin install claudesay@claudesay
+claude plugin install claudesay --marketplace TimJJTing/claudesay
 ```
 
-Verify it loaded (optional):
+In the desktop app, `/plugin` is not available. Do these steps:
 
-```bash
-grep claudesay ~/.claude/settings.json                    # enabledPlugins entry
-grep claudesay ~/.claude/plugins/installed_plugins.json   # install record
+1. Click **+** adjacent to the prompt box.
+2. Click **Plugins**.
+3. Click **Add marketplace** and type `TimJJTing/claudesay`.
+4. Click **Add plugin**.
+
+### Upgrade from version 2
+
+Version 3 is a mod. It replaces the Bash hooks of version 2. Do these steps after the upgrade:
+
+1. Remove the old flag files. Version 3 does not use them:
+
+   ```bash
+   rm -f .claude/.claudesay-active
+   ```
+
+2. If you have `~/.claude/claudesay/character.sh`, write the same values in `~/.claude/claudesay/character.json`. Refer to [CHARACTER_CUSTOMIZATION.md](CHARACTER_CUSTOMIZATION.md).
+3. To turn the character off, set the mode to `off`. Refer to [Use](#use). Version 3 does not have the old phrases ("turn on claudesay") or a `/claudesay` command.
+4. Version 2 drew a bubble under each reply. Version 3 shows one character above the prompt. Refer to [Known limitations](#known-limitations).
+
+## Use
+
+claudesay is on after the installation. To change the mode, do these steps:
+
+1. Type `/config`.
+2. Find the **claudesay** row **Mode**.
+3. Select a mode:
+
+| Mode | Result |
+| --- | --- |
+| `on` | The default. The character holds a prop while a tool runs. After a conversational reply, it says the main point of the reply. |
+| `tools` | The character holds a prop while a tool runs. The mod does not add the protocol to the system prompt, so Claude writes no tags. |
+| `off` | No character. The mod adds no hooks. Tags in older replies show as Claude wrote them. |
+
+The mod loads again immediately with the new mode. You do not have to restart the session.
+
+## How it works
+
+claudesay is one TypeScript module, `hooks/claudesay.tsx`. Claude Code loads it as a mod. The module adds hooks to these events:
+
+| Event | What the hook does |
+| --- | --- |
+| `session.start` | Reads `character.json`. |
+| `prompt.compose` | Adds the `<claudesay-protocol>` section to the system prompt, in the `on` mode and only in a session on the terminal or the desktop app. |
+| `turn.start` | Clears the last line. Reads `character.json` again, so that a change shows on the next turn. |
+| `tool.call` | Records the tools that run now. Removes each tool when it stops. The hook does not change, block or approve a tool call. |
+| `turn.complete` | Reads the tag at the end of the final answer. The tag becomes the line in the band. The mod remembers a key for the tag in its store. |
+| `ui.render` `AssistantMessage` | Removes the tag of a final answer from the reply on the screen. While a turn runs, it also hides a tag that is not complete yet. |
+| `ui.render` `AbovePrompt` | Draws the character in the band above the prompt. |
+
+The band shows one of these, in this order:
+
+1. The newest tool that runs now, with its prop.
+2. A thinking face, while Claude works and no tool runs.
+3. The line about the last reply.
+4. Nothing.
+
+### The tag
+
+The protocol tells Claude to write a tag at the end of a conversational reply:
+
+```
+<claudesay mood="happy">I fixed the test. Do you want a commit?</claudesay>
 ```
 
-Restart your Claude Code session for the hooks to take effect.
+The available moods are `happy`, `excited`, `thinking`, `focused`, `upset` and `error`. The protocol tells Claude not to write the tag for code blocks, diffs, long technical output, replies with tools only and subagent reports.
 
-If you commit your project's `.claude/` directory, you should probably ignore the flag file so it doesn't get checked in:
+The mod uses only a tag at the very end of a reply. A tag in other positions, for example an example tag in a code block or the word `<claudesay` in a sentence, stays visible as Claude wrote it.
 
-```bash
-# .gitignore
-.claude/.claudesay-active
-```
+The tag restates the final text block of the reply, the text immediately before the tag. If the turn did several things, the protocol tells Claude to say them in the final text block first.
 
-## Usage
+### The history stays complete
 
-Toggle on or off with one of the recognized phrases:
+The tag repeats the reply. The bubble shows only the newest line, so the reply must hold all of the information. Five rules make sure of this:
 
-- `turn on claudesay` / `enable claudesay` / `activate claudesay` / `start claudesay`
-- `turn off claudesay` / `disable claudesay` / `hide claudesay` / `stop claudesay`
-- `toggle claudesay`
-- `claudesay status` / `is claudesay on?`
+1. The protocol tells Claude to put every fact, warning and question in the reply text, and never in the tag only.
+2. The mod examines the tag before it removes it. If the tag has a link, a domain name, a number, a path, a code span or a command word (for example `curl` or `sudo`) that the final text block does not have as a whole word, the mod does not remove the tag. The tag stays visible in the reply, and the band does not show it. The mod also keeps a tag that asks for consent, for example `[y/N]` or "type y", if the reply does not ask for it.
+3. If the reply has no text other than the tag, the mod does not remove the tag.
+4. If the tag has more than 300 characters, the mod does not remove the tag.
+5. After a turn, the mod removes only the tag of the final answer. A tag in a text block before a tool call stays visible, because the band never shows it.
 
-**Toggling never asks for Bash permission.** The `UserPromptSubmit` hook detects these phrases, flips the flag file itself, renders the confirmation bubble directly to the terminal, and suppresses Claude's turn with a `{"decision":"block"}` response. Claude isn't in the loop.
+The check of rule 2 compares all scripts and forms of text. Before the comparison, the mod changes fullwidth letters and digits to plain letters and digits, changes ideographic dots to `.`, and removes invisible characters. It compares whole tokens, so `rm` does not match "format", and `5` does not match "15".
 
-Loose phrasing ("flip claudesay on, would ya?") will fall through to Claude. In that case the skill tells Claude to point you at the recognized phrase — it will not attempt to toggle via a Bash call.
+The bubble never asks for permission. Claude Code shows all permission prompts itself.
 
-## Architecture
+Before the mod draws text, it removes control characters and format characters, for example terminal escape sequences and bidirectional overrides. The mod cuts a line after 300 characters.
 
-All behavior is in hooks (registered in `.claude-plugin/plugin.json`, implemented as external Bash scripts):
+## Character customization
 
-| Hook               | Script                           | Responsibility                                                                                          |
-| ------------------ | -------------------------------- | ------------------------------------------------------------------------------------------------------- |
-| `SessionStart`     | `hooks/scripts/session-start.sh` | Injects the `<claudesay-protocol>` instruction as additional context when the flag is on.               |
-| `UserPromptSubmit` | `hooks/scripts/prompt-submit.sh` | Handles toggle/status intents in-hook; emits the per-turn reminder on other prompts.                    |
-| `PreToolUse`       | `hooks/scripts/pre-tool-use.sh`  | Renders the tool-holding character before each tool call.                                               |
-| `Stop`             | `hooks/scripts/stop.sh`          | Extracts the `<claudesay>` tag from `last_assistant_message` and renders the speech bubble.             |
-
-The skill at `skills/claudesay/SKILL.md` is documentation/fallback only — it does not run Bash.
-
-
-## Character Customization
-
-See [CHARACTER_CUSTOMIZATION.md](CHARACTER_CUSTOMIZATION.md) for detailed customization options including grid layout, dimension variables, face expressions, grid cells, prop templates, tool display config, and the preview script.
+Refer to [CHARACTER_CUSTOMIZATION.md](CHARACTER_CUSTOMIZATION.md). It gives the grid layout, the faces, the cells, the prop templates and the tool props.
 
 ## FAQ
 
-### Does it consume my tokens?
+### Does claudesay use tokens?
 
-Yes, but not much. The plugin adds a small instruction to the conversation at session start (~120 tokens) plus a short per-turn reminder (~20 tokens). The `<claudesay>` tag Claude writes in its reply also costs a few output tokens per turn. In practice the overhead is negligible — well under 1 % of a typical conversation's total token usage.
+In the `on` mode, yes, but not many. The protocol section is approximately 350 tokens. It is in the system prompt of each request. The protocol is after the cache boundary of the prompt, so the prompt cache usually holds it. Each tag that Claude writes is also a few output tokens.
 
-The hooks themselves (rendering, toggling, reading the response) are pure Bash and do not make any API calls, so they cost zero tokens.
+The hooks do not call the API. In the `tools` mode and in the `off` mode, claudesay uses no tokens.
 
-### Does the ASCII character art occupy context?
+### Does claudesay send data on the network?
 
-No. The rendered ASCII art (the speech bubble, the character figure, the grid) is produced entirely by the shell scripts and displayed to you via `systemMessage` — a transient notification that is **not** fed back into Claude's conversation context/history. Claude never sees the rendered output.
+No. All drawing occurs in the mod.
 
-The only things that actually enter context are:
+### Does the transcript change?
 
-- The `<claudesay-protocol>` instruction injected at session start (~120 tokens).
-- The short per-turn reminder hint (~20 tokens).
-- The `<claudesay mood="…">…</claudesay>` tag that Claude writes in its own reply (a few output tokens).
+The stored messages do not change. The mod changes only what the screen shows:
 
-The 87-line character definition, the grid rendering logic, and the final ASCII art all live purely in shell-land and cost zero context tokens.
+- The tag at the end of a reply does not show. The reply text shows completely.
+- The band shows only the newest line. To read an earlier reply, scroll back to the reply.
 
-### Why does the bubble not always appear?
+### Does the ASCII art go into the context?
 
-The bubble only renders when Claude includes a `<claudesay>` tag in its reply. The session-start instruction tells Claude to add the tag only on "chatty, conversational" replies and to skip it for pure code blocks, diffs, long technical output, or tool-only responses. So if you ask Claude to write a file or run a command and it responds with nothing but code, you won't see a bubble — that's intentional.
+No. Claude does not see the art. Only the protocol section and the tags that Claude writes go into the context.
 
-Other reasons a bubble may not appear:
+### Why is there no bubble after a reply?
 
-- **claudesay is off.** Check with `claudesay status`.
-- **Claude forgot.** The model doesn't always follow the instruction perfectly.
-  This is a known limitation of prompt-based approaches.
-- **Non-interactive terminal.** The character requires a writable `/dev/tty`. CI,
-  Docker, `--print` mode, and non-interactive SSH sessions will silently skip
-  rendering.
+Possible causes:
 
-### How is this different from Claude Code's once built-in Buddy?
+- **The reply is not conversational.** The protocol tells Claude not to write a tag for code, diffs and long technical output.
+- **Claude did not write the tag.** The model does not always obey the protocol. This is a limitation of all prompt-based solutions.
+- **The tag said more than the final text block.** Then the tag stays in the reply, and the band does not show it. Refer to [The history stays complete](#the-history-stays-complete).
+- **The reply was only the tag.** Then the tag stays in the reply, and the band does not show it.
+- **The mode is `tools` or `off`.** Type `/config` and examine the claudesay mode.
+- **A new turn started.** A new turn clears the line.
+- **No band.** In `--print` mode, in an SDK host, in VS Code and on mobile, the band does not draw. The mod does not add the protocol there.
 
-Buddy was a Tamagotchi-style virtual pet — a companion you hatch and tend to. claudesay is something different: it's a **reaction layer on top of Claude's actual work**, not a pet.
+### How is claudesay different from Buddy?
 
-- **Automatic, not manual.** claudesay fires on its own — every tool call renders a character holding a context prop, every chatty reply gets a speech bubble. You don't invoke it; it shows up because Claude is working.
-- **Stateless by design.** There's no persistent creature to feed or evolve. The mood shown in each bubble comes directly from that reply's `<claudesay>` tag — it reflects what Claude just did, then it's gone.
-- **Hook-driven, not a slash-command.** Everything runs through Claude Code hooks (`SessionStart`, `UserPromptSubmit`, `PreToolUse`, `Stop`). No Pro subscription required, no built-in Claude Code feature needed — just Bash scripts reacting to lifecycle events.
-- **About the work, not the relationship.** Buddy gave you something to care for. claudesay gives Claude a face while it codes.
+Buddy was a virtual pet in earlier versions of Claude Code. You hatched it and you cared for it. claudesay is different:
 
-## Known Limitations
+- **Automatic.** The character shows when Claude works. You do not call it.
+- **No state.** There is no creature that grows. Each line is about one reply. Then the next turn replaces it.
+- **A mod.** It is a mod that anyone can install. It does not need a built-in Claude Code feature.
+- **About the work.** The character shows what Claude does now.
 
-- The raw `<claudesay>` tag appears in the terminal scrollback before the bubble renders (Claude streams it before the Stop hook fires).
-- Figures do not render in CI, `--print` mode, or non-interactive SSH sessions.
-- Per-turn reminder adds ~20 tokens per turn.
-- **Caveman mode (and similar terse plugins) drops pronouns.** [Caveman's](https://github.com/JuliusBrussee/caveman) `full`/`ultra` modes allow fragments, which causes pronouns to drop as emergent behavior. The claudesay protocol encourages active voice with natural pronoun use — caveman may counteract this. Use `/caveman lite` if you want caveman + claudesay together with more natural phrasing.
-- **Stop-hook bubble is prefixed with "Stop says:" in the terminal scrollback.** Claude Code wraps any `systemMessage` returned by a Stop hook with this label — it is enforced by the runtime and cannot be suppressed via the hook response.
+## Known limitations
 
-  **Why we stop here:** the natural alternative — writing the bubble directly to `/dev/tty` — was tried and abandoned. Claude Code's TUI redraws its dynamic region immediately after the Stop hook returns, clobbering anything written to `/dev/tty` (`hooks/scripts/stop.sh`, commit `313b617`). `systemMessage` lands in permanent scrollback instead and survives the redraw; the trade-off is the label.
+- **The band shows only the newest line.** There is no history of bubbles.
 
-  **If Claude Code ever exposes a hook output field that renders without a label** (or a `PostStop` moment after the TUI has settled), writing directly to `/dev/tty` would remove the label with no other changes needed — `lib/render.sh` already supports this path.
+  **Why we stop here:** A bubble under each reply makes the transcript longer, and the replies already hold all the information. One character keeps the screen clean.
 
-- **Stop-hook bubble reflects only the final assistant text block of a turn.** The Stop hook reads `.last_assistant_message` and grabs the last `<claudesay>` tag in it (`hooks/scripts/stop.sh`, `tail -1`). If Claude emits multiple conversational text messages in one turn (text → tool → text → tool → text), only the tag in the last block renders.
+  **If you want a bubble under each reply**, draw it in the `ui.render` hook on `AssistantMessage`. That hook already parses the tag of each reply. Version 2 did this. Not shipped. Contributions are welcome.
 
-  **Why we stop here:** the injected protocol (`hooks/scripts/session-start.sh`) instructs Claude to emit a single tag *at the very end*, covering the whole turn in a few sentences. One well-written bubble usually describes the turn in full, making multi-bubble rendering redundant for the intended use case.
+- **The full transcript can show the raw tag.** The mod changes the display only. The stored message keeps the tag. Exported transcripts show the stored text. Tags from before the installation, or from a session with the `off` mode, also show, because the mod did not record them as final answers.
 
-  **If you want to render a bubble per mid-turn text block**, parse `transcript_path` (available on Stop hook input JSON). The transcript is JSONL, one message per line. Assistant entries look like:
+  **Why we stop here:** If the mod removes the tag from the stored message, Claude cannot see its earlier tags. Then Claude follows the protocol less well.
 
-  ```json
-  {"type":"assistant","message":{"role":"assistant","content":[
-    {"type":"thinking", "...": "..."},
-    {"type":"text","text":"<claudesay mood=\"...\">...</claudesay>"},
-    {"type":"tool_use", "...": "..."}
-  ]}}
-  ```
+  **If you want to remove the tag from the stored message**, add a `session.append` hook. It can change the text blocks of each assistant row. Not shipped. Contributions are welcome.
 
-  A turn spans **multiple** assistant entries (one per LLM call, split by tool boundaries). Each has its own `.message.content` array of blocks — `thinking`, `text`, `tool_use`. Steps:
+- **The tag check does not examine the meaning.** The check stops links, numbers, paths, commands and consent prompts that only the tag has. It does not stop a tag that says "All tests pass" when the reply says that the tests are not done. A reply can quote a web page with instructions, and Claude can obey them in the tag. The check also reads the reply as Markdown source: a link target that the screen does not show, for example in `[docs](https://example.com)`, counts as part of the reply.
 
-  1. Walk JSONL backwards from EOF.
-  2. Stop at the most recent `type:"user"` entry whose content is not a `tool_result` — that marks the start of the current turn.
-  3. For each assistant entry after that boundary, extract `.message.content[] | select(.type=="text") | .text`.
-  4. Run the existing `<claudesay>` regex over each block; render matches sequentially, or combine into one multi-line bubble.
+  **Why we stop here:** A check of the meaning of a sentence needs a second model, and that model can also be wrong.
 
-  Sketch (`jq`):
+  **What to do:** Do not act on the bubble alone. Read the reply.
 
-  ```bash
-  jq -r '
-    select(.type=="assistant")
-    | .message.content[]?
-    | select(.type=="text")
-    | .text
-  ' "$TRANSCRIPT_PATH"
-  ```
+  **If you want a stronger check**, extend `isGrounded` in `hooks/art.ts`. Contributions are welcome.
 
-  Add guards for missing/malformed/large transcripts. The protocol would also need updating to permit (and describe) mid-turn tags. Not shipped — contributions welcome.
+- **The band uses vertical space.** With the default character, the band is approximately 13 rows high when it shows a bubble.
+
+  **If you want a smaller band**, give a smaller character in `character.json`. Refer to [CHARACTER_CUSTOMIZATION.md](CHARACTER_CUSTOMIZATION.md). A compact mode with the face only is not shipped. Contributions are welcome.
+
+- **The band shows one tool.** When Claude runs tools in parallel, the band shows the newest tool that still runs.
+
+- **The band is not available on all surfaces.** Claude Code draws `AbovePrompt` on the terminal and on the desktop app only. A session on VS Code or mobile does not get the protocol and does not show the character.
+
+- **Emoji width changes with the font.** The mod counts each emoji as two columns. This includes emoji sequences, for example flags, skin tones and joined emoji. Some terminal fonts draw an emoji in one column. Then the right side of a prop row moves by one column. To prevent this, use single-width symbols as props. Refer to [CHARACTER_CUSTOMIZATION.md](CHARACTER_CUSTOMIZATION.md).
+
+- **Terse plugins can remove pronouns.** The `full` and `ultra` modes of [Caveman](https://github.com/JuliusBrussee/caveman) let Claude write fragments. Then Claude can drop pronouns from the tag. Use `/caveman lite` if you use Caveman with claudesay.
+
+- **Subagents can see the protocol.** The protocol tells Claude not to write the tag in subagent reports. If a subagent writes a tag, the band does not show it.
 
 ## Development
 
-### Project Structure
+### Project structure
 
 ```
 claudesay/
-├── .claude-plugin/                 # Plugin metadata and marketplace config
-│   ├── plugin.json                 # Hook registrations, plugin manifest
-│   └── marketplace.json            # Marketplace registration details
-├── .claude/                        # Claude Code project settings
-│   └── settings.local.json         # Local environment overrides
-├── bin/                            # Utilities and preview tools
-│   └── preview.sh                  # Character preview script for development
-├── characters/                     # Character preset definitions
-│   └── default.sh                  # Default character (cat) definition
-├── hooks/                          # Lifecycle hook implementations
-│   └── scripts/
-│       ├── session-start.sh        # Injects protocol instruction when flag is on
-│       ├── prompt-submit.sh        # Handles toggle intents; emits per-turn reminder
-│       ├── pre-tool-use.sh         # Renders character with tool prop before each tool call
-│       └── stop.sh                 # Extracts <claudesay> tag and renders speech bubble
-├── lib/                            # Shared utility modules
-│   ├── character.sh                # Character grid rendering logic
-│   ├── moods.sh                    # Mood-to-expression mapping
-│   ├── render.sh                   # Bubble and ASCII art rendering
-│   └── tools.sh                    # Tool-to-emoji and mood mapping
-├── skills/                         # Claude Code skill documentation
-│   └── claudesay/
-│       └── SKILL.md                # User-facing skill docs (fallback only)
-├── tests/                          # Test suite
-│   ├── run-all.sh                  # Test runner (runs all test-*.sh)
-│   ├── assert.sh                   # Test assertion utilities
-│   ├── test-character.sh           # Character grid tests
-│   ├── test-data-layer.sh          # Tool/mood mapping tests
-│   ├── test-hooks.sh               # Hook integration tests
-│   └── test-render.sh              # Rendering logic tests
-├── docs/                           # Design and specification docs
-│   └── superpowers/specs/
-│       └── 2026-04-17-claude-say-design.md  # Architecture and design spec
-├── README.md                       # This file
-└── CHARACTER_CUSTOMIZATION.md      # Character customization guide
+├── .claude-plugin/
+│   ├── plugin.json           # Plugin manifest. Names the state contract and the mode option.
+│   ├── marketplace.json      # Makes this repository a marketplace.
+│   ├── icon.png              # Plugin icon: the default character, 1024 × 1024.
+│   └── types/                # Claude Code writes this folder. Git ignores it.
+├── hooks/
+│   ├── hooks.json            # Names the hooks module.
+│   ├── claudesay.tsx         # The hooks module: events, state, tag removal and the band.
+│   └── art.ts                # Pure functions: character, bubble, tag parse, tag check, tool props.
+├── types/
+│   └── index.d.ts            # State contract and shared types.
+├── tests/
+│   ├── art.test.ts           # Unit tests for art.ts.
+│   └── claudesay.test.tsx    # Tests for the hooks against the Claude Code engine.
+├── tsconfig.json             # Type-check configuration.
+├── README.md
+└── CHARACTER_CUSTOMIZATION.md
 ```
 
-### Key Files
+### Load the mod from your checkout
 
-**Plugin Configuration:**
-- `plugin.json` — Registers the four hooks (`SessionStart`, `UserPromptSubmit`, `PreToolUse`, `Stop`) that drive all behavior.
+1. Uninstall the marketplace version, if you installed it:
 
-**Hook Scripts:**
-- `session-start.sh` — Injects the claudesay protocol instruction into the system prompt when the feature flag is active.
-- `prompt-submit.sh` — Intercepts toggle commands (e.g., "turn on claudesay") before Claude sees them; blocks the prompt and flips the flag file directly. On other prompts, appends a reminder.
-- `pre-tool-use.sh` — Looks up the tool name in `TOOL_INFO_*` variables and renders the character holding the corresponding emoji prop.
-- `stop.sh` — Extracts the last `<claudesay mood="...">` tag from Claude's reply and renders the speech bubble with the appropriate face.
+   ```bash
+   claude plugin uninstall claudesay
+   ```
 
-**Shared Modules (lib/):**
-- `character.sh` — Grid layout engine; handles padding, cell positioning, and prop overlays.
-- `moods.sh` — Maps mood names to face expressions; includes happy/excited alternation for visual variety.
-- `render.sh` — Renders the speech bubble and combines it with the character figure.
-- `tools.sh` — Maps Claude Code tools to emoji props, moods, and hand sides; sourced by hooks and preview.
+2. Start a session that loads the mod from the folder:
 
-**Testing:**
-- `test-hooks.sh` — Integration tests for hook behavior (toggle detection, transcript parsing).
-- `test-render.sh` — Unit tests for speech bubble and character rendering.
-- `test-character.sh` — Grid cell alignment and padding tests.
-- `test-data-layer.sh` — Tool/mood mapping validation.
+   ```bash
+   claude --plugin-dir .
+   ```
 
-### Running Tests
+Claude Code watches the folder. When you save a file, the mod loads again. You do not have to restart the session. To see hook errors, add `--debug`.
+
+### Check the mod
+
+Do these checks before you push a change:
 
 ```bash
-bash tests/run-all.sh
+claude plugin validate .
+claude plugin test .
+npx -p typescript@5.6.3 tsc -p .
 ```
 
-Run a single test file:
+- `claude plugin validate` reads the manifest and the module. It shows the hooks, the calls and the state keys.
+- `claude plugin test` runs the `*.test.ts` and `*.test.tsx` files against the Claude Code engine.
+- `tsc` checks the types. Load the mod one time before you run it, because `tsc` needs the types that Claude Code writes to `.claude-plugin/types/`.
 
-```bash
-bash tests/test-render.sh
-```
+## License
+
+MIT

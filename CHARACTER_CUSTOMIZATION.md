@@ -1,173 +1,227 @@
-# Character Customization
+# Character customization
 
-Create `~/.claude/claudesay/character.sh` and override any subset of variables — missing vars fall back to the defaults.
+You can change the character with a JSON file. Put the file at this path:
+
+```
+~/.claude/claudesay/character.json
+```
+
+The file is optional. If there is no file, the mod uses the default character and shows no message.
+
+Write only the fields that you want to change. The mod uses the default value for each field that is not in the file.
+
+The mod reads the file when a session starts and when each turn starts. Thus a change shows on the next turn. You do not have to restart the session.
+
+The mod checks the file:
+
+- If the file is not valid JSON, is larger than 64 KB, or is not a regular file, the mod shows a message and uses the default character. The mod does not read a file that is larger than 64 KB.
+- If a field has an incorrect value, the mod ignores that field and shows a message with its name. The mod uses the other fields.
+- The mod shows a message one time for each change to the file, not on each turn.
+
+These are the limits:
+
+| Item | Limit |
+| --- | --- |
+| `sideWidth`, `centerWidth`, `cellHeight` | An integer from 1 to 40. |
+| `topHeight` | An integer from 0 to 40. |
+| A cell or a prop template | A list of 20 strings or less. |
+| One line, one face or one prop | 200 characters or less. |
+| `tools` | 500 tools or less. |
+
+The mod removes control characters from all lines before it draws them.
+
+## Example
+
+This file changes the focused face, gives the character a hat and changes the prop for Bash:
+
+```json
+{
+  "faces": {
+    "focused": "( •_•  )"
+  },
+  "cells": {
+    "top": ["  ___  ", " /\\__/\\ "]
+  },
+  "tools": {
+    "Bash": { "prop": "⚡", "side": "left" }
+  }
+}
+```
+
+In JSON, write each backslash as `\\`.
 
 ## Grid layout
 
-The character is a **3×3 grid of cells** (18 cols × 9 rows). Center column is 8 chars wide; side columns are 5 chars wide.
+The character is a grid of 3 × 3 cells. With the default dimensions, it is 18 columns wide and 9 rows high.
 
 ```
   ┌─────┬────────┬─────┐
-  │ TL  │  TOP   │ TR  │  rows 0-1   ← TOP is 8×2
-  │     │  FACE  │     │  row  2     ← FACE is 8×1 (mood-specific)
+  │ TL  │  TOP   │ TR  │  topHeight rows (default 2)
+  │     │  FACE  │     │  1 row
   ├─────┼────────┼─────┤
-  │  L  │  BODY  │  R  │  rows 3-5
+  │  L  │  BODY  │  R  │  cellHeight rows (default 3)
   ├─────┼────────┼─────┤
-  │ BL  │  BOT   │ BR  │  rows 6-8
+  │ BL  │  BOT   │ BR  │  cellHeight rows (default 3)
   └─────┴────────┴─────┘
 ```
 
-## Dimension variables
+The TL and TR cells are `topHeight + 1` rows high, because they include the face row.
 
-```bash
-CHAR_SIDE_WIDTH=5      # cols for TL/TR/L/R/BL/BR
-CHAR_CENTER_WIDTH=8    # cols for TOP/FACE/BODY/BOT
-CHAR_CELL_HEIGHT=3     # rows for all cells except TOP
-CHAR_TOP_HEIGHT=2      # rows for TOP (FACE always occupies row 2)
+The mod adds spaces to the right of each line until the line fills the cell width. It also adds empty lines at the bottom until the cell is full. Thus you can write only the lines that have content. You must write empty lines at the top of a cell.
+
+The mod removes empty rows at the bottom of the character.
+
+## Dimensions
+
+| Field | Default | Function |
+| --- | --- | --- |
+| `sideWidth` | `5` | Width of the TL, TR, L, R, BL and BR cells, in columns. |
+| `centerWidth` | `8` | Width of the TOP, FACE, BODY and BOT cells, in columns. |
+| `cellHeight` | `3` | Height of the L, BODY, R, BL, BOT and BR cells, in rows. |
+| `topHeight` | `2` | Height of the TOP cell, in rows. |
+
+The tail of the bubble points to column `sideWidth + centerWidth / 2`.
+
+## Faces
+
+A face is one line. Make it `centerWidth` columns wide. The parentheses are part of the face.
+
+Give one face as a string. Give two or more faces as a list. When a mood has a list, the mod selects one face for each line. The same line always gets the same face.
+
+| Mood | Default | Use |
+| --- | --- | --- |
+| `happy` | `["( ^ᵕ^  )", "( ᵕ‿ᵕ  )"]` | Success. |
+| `excited` | `["( ^▽^  )", "( ≧▽≦  )"]` | Success. |
+| `thinking` | `"( ._.  )"` | Work in progress, or not sure. The band also shows it while Claude works and no tool runs. |
+| `focused` | `"( -.-  )"` | Work, or a command that runs. |
+| `upset` | `"( >_<  )"` | A warning, or a partial failure. |
+| `error` | `"( x_x  )"` | A failure. |
+
+```json
+{
+  "faces": {
+    "happy": ["( ^ᵕ^  )", "( ᵕ‿ᵕ  )"],
+    "error": "( x_x  )"
+  }
+}
 ```
 
-## Face expressions
+## Cells
 
-8 chars wide, parens included. Positive moods rotate between two variants.
+Each cell is a list of lines. These are the defaults:
 
-```bash
-CHAR_FACE_HAPPY_A="( ^ᵕ^  )"
-CHAR_FACE_HAPPY_B="( ᵕ‿ᵕ  )"
-CHAR_FACE_EXCITED_A="( ^▽^  )"
-CHAR_FACE_EXCITED_B="( ≧▽≦  )"
-CHAR_FACE_THINKING="( ._.  )"
-CHAR_FACE_FOCUSED="( -.-  )"
-CHAR_FACE_UPSET="( >_<  )"
-CHAR_FACE_ERROR="( x_x  )"
+```json
+{
+  "cells": {
+    "topLeft": [],
+    "top": ["", " /\\__/\\ "],
+    "topRight": [],
+    "left": ["   ╭╭", "   ○ "],
+    "body": [": ,,,, :", "(      )", "(╭....╮)"],
+    "right": ["╮╮", " ○"],
+    "bottomLeft": ["    ("],
+    "bottom": ["_)    (_"],
+    "bottomRight": [")╰~~>"]
+  }
+}
 ```
 
-## Grid cells
+## Prop templates
 
-Cells are right-padded to their column width and bottom-padded to their row count automatically — write only the lines that matter; trailing blank lines can be omitted.
+When the character holds a prop, a prop template replaces the L cell or the R cell. In the template, `{prop}` changes to the prop of the tool.
 
-```bash
-# Top section (TL/TR: 5×3; TOP: 8×CHAR_TOP_HEIGHT)
-CHAR_TOP_LEFT="\
-     
-     
-     "
-
-CHAR_TOP="\
-        
- /\__/\\ "
-
-CHAR_TOP_RIGHT="\
-     
-     
-     "
-
-# Body section (L/R: 5×3; BODY: 8×3)
-CHAR_LEFT="\
-   ╭╭
-   ○ 
-     "
-
-CHAR_BODY="\
-: ,,,, :
-(      )
-(╭....╮)"
-
-CHAR_RIGHT="\
-╮╮   
- ○   
-     "
-
-# Bottom section (BL/BR: 5×3; BOT: 8×3)
-CHAR_BOTTOM_LEFT="\
-    (
-     
-     "
-
-CHAR_BOTTOM="\
-_)    (_
-        
-        "
-
-CHAR_BOTTOM_RIGHT="\
-)╰~~>
-     
-     "
+```json
+{
+  "propLeft": [" {prop}○═"],
+  "propRight": ["═○{prop}"]
+}
 ```
 
-## Prop cell templates
+## Tool props
 
-When the character holds a tool prop, the left or right cell is replaced by an expanded template. `$prop` expands to the tool's emoji at render time.
+Each tool has a look with three fields:
 
-**Use single quotes** so `$prop` is not expanded when the file is sourced:
+| Field | Values | Function |
+| --- | --- | --- |
+| `prop` | A symbol, or `null` | The item in the hand of the character. `null` means no item. |
+| `mood` | `happy`, `excited`, `thinking`, `focused`, `upset`, `error` | The face of the character. |
+| `side` | `left`, `right`, or `null` | The hand that holds the prop. |
 
-```bash
-CHAR_PROP_LEFT='\
- ${prop}○═
-     
-     '
+Use the tool name as the key. You can give a part of a look. The mod keeps the default value of each field that you do not give.
 
-CHAR_PROP_RIGHT='\
-═○${prop}  
-     
-     '
+```json
+{
+  "tools": {
+    "Bash": { "prop": "⚡", "mood": "happy", "side": "left" },
+    "Grep": { "mood": "thinking" },
+    "mcp__github__create_issue": { "prop": "🐙", "mood": "excited", "side": "right" }
+  }
+}
 ```
 
-## Tool display config
+A tool that is not in the list has no prop and the `happy` mood. An MCP tool (name starts with `mcp__`) that is not in the list uses the look of `ReadMcpResourceTool`.
 
-Each tool maps to a `"prop mood side"` triple that controls the emoji in the character's hand, the face expression, and which arm holds the prop. Override any entry in `~/.claude/claudesay/character.sh`:
+### Default tool props
 
-```bash
-# Make Bash feel more electric; hold it on the left
-TOOL_INFO_BASH="⚡ happy left"
+| Tools | Prop | Mood | Side |
+| --- | --- | --- | --- |
+| `Edit`, `Write`, `MultiEdit` | 🔧 wrench | `focused` | `left` |
+| `Bash` | 🪄 wand | `excited` | `right` |
+| `Grep`, `Glob`, `ToolSearch`, `LSP` | 🔍 magnifying glass | `focused` | `left` |
+| `Read` | 📖 book | `focused` | `left` |
+| `WebFetch`, `WebSearch` | 📡 satellite dish | `thinking` | `right` |
+| `Agent` | 🤖 robot | `excited` | `right` |
+| `TodoWrite` | 📋 clipboard | `focused` | `left` |
+| `AskUserQuestion` | 🎤 microphone | `excited` | `right` |
+| `CronCreate` | ⏰ alarm clock | `focused` | `right` |
+| `CronDelete` | 🔫 pistol | `focused` | `left` |
+| `CronList` | 📅 calendar | `thinking` | `left` |
+| `EnterPlanMode` | 🗺️ map | `thinking` | `left` |
+| `ExitPlanMode` | no prop | `excited` | `right` |
+| `EnterWorktree`, `ExitWorktree` | 🌿 branch | `focused` | `right` |
+| `Monitor` | 🔭 telescope | `thinking` | `left` |
+| `NotebookEdit` | 📓 notebook | `focused` | `right` |
+| `PowerShell` | 💠 blue diamond | `focused` | `right` |
+| `SendMessage` | 📨 envelope | `excited` | `right` |
+| `Skill` | 🍳 frying pan | `excited` | `left` |
+| `TaskCreate` | 📝 memo | `focused` | `left` |
+| `TaskGet`, `TaskList`, `TaskUpdate` | 📝 memo | `thinking` | `left` |
+| `TaskOutput`, `TaskStop` | no prop | `focused` | `right` |
+| `TeamCreate`, `TeamDelete` | 💰 money bag | `excited` | `right` |
+| `ListMcpResourcesTool`, `ReadMcpResourceTool` | 🔌 plug | `thinking` | `left` |
 
-# Make all searches look pensive
-TOOL_INFO_SEARCH="🔭 thinking left"
+## Single-width props
+
+The mod counts each emoji as two columns. Some terminal fonts draw an emoji in one column. If the prop rows move by one column in your terminal, use single-width symbols as props. These symbols have the same width in all terminal fonts:
+
+```json
+{
+  "tools": {
+    "Edit": { "prop": "✎ " },
+    "Bash": { "prop": "↯ " },
+    "Read": { "prop": "▤ " }
+  }
+}
 ```
 
-Available variables and their defaults:
+Add a space after a single-width symbol. The space keeps the prop two columns wide, the same as the default emoji.
 
-| Variable | Default | Prop | Tools |
-|---|---|---|---|
-| `TOOL_INFO_EDIT` | `🔧 focused left` | 🔧 wrench | `Edit`, `Write` |
-| `TOOL_INFO_BASH` | `🪄 excited right` | 🪄 wand | `Bash` |
-| `TOOL_INFO_SEARCH` | `🔍 focused left` | 🔍 magnifying glass | `Grep`, `Glob`, `ToolSearch`, `LSP` |
-| `TOOL_INFO_MONITOR` | `🔭 thinking left` | 🔭 telescope | `Monitor` |
-| `TOOL_INFO_READ` | `📖 focused left` | 📖 book | `Read` |
-| `TOOL_INFO_WEB` | `📡 thinking right` | 📡 satellite dish | `WebFetch`, `WebSearch` |
-| `TOOL_INFO_AGENT` | `🤖 excited right` | 🤖 robot | `Agent` |
-| `TOOL_INFO_TODO` | `📋 focused left` | 📋 clipboard | `TodoWrite` |
-| `TOOL_INFO_ASK` | `🎤 excited right` | 🎤 microphone | `AskUserQuestion` |
-| `TOOL_INFO_CRON_CREATE` | `⏰ focused right` | ⏰ alarm clock | `CronCreate` |
-| `TOOL_INFO_CRON_DELETE` | `🔫 focused left` | 🔫 pistol | `CronDelete` |
-| `TOOL_INFO_CRON_LIST` | `📅 thinking left` | 📅 calendar | `CronList` |
-| `TOOL_INFO_PLAN_ENTER` | `🗺️ thinking left` | 🗺️ map | `EnterPlanMode` |
-| `TOOL_INFO_PLAN_EXIT` | `none excited right` | _(no prop)_ | `ExitPlanMode` |
-| `TOOL_INFO_WORKTREE` | `🌿 focused right` | 🌿 branch | `EnterWorktree`, `ExitWorktree` |
-| `TOOL_INFO_NOTEBOOK` | `📓 focused right` | 📓 notebook | `NotebookEdit` |
-| `TOOL_INFO_POWERSHELL` | `💠 focused right` | 💠 blue diamond | `PowerShell` |
-| `TOOL_INFO_MESSAGE` | `📨 excited right` | 📨 envelope | `SendMessage` |
-| `TOOL_INFO_SKILL` | `🍳 excited left` | 🍳 frying pan | `Skill` |
-| `TOOL_INFO_TASK_WRITE` | `📝 focused left` | 📝 memo | `TaskCreate` |
-| `TOOL_INFO_TASK_READ` | `📝 thinking left` | 📝 memo | `TaskGet`, `TaskList`, `TaskUpdate` |
-| `TOOL_INFO_TASK_STOP` | `none focused right` | _(no prop)_ | `TaskOutput`, `TaskStop` |
-| `TOOL_INFO_TEAM` | `💰 excited right` | 💰 money bag | `TeamCreate`, `TeamDelete` |
-| `TOOL_INFO_MCP` | `🔌 thinking left` | 🔌 plug | `ListMcpResourcesTool`, `ReadMcpResourceTool` |
-| `TOOL_INFO_DEFAULT` | `none happy none` | _(no prop)_ | all other tools |
+## Migrate from character.sh
 
-## Preview script
+Version 2 used `~/.claude/claudesay/character.sh`. Version 3 does not read this file. Use this table to move your values to `character.json`:
 
-Iterate on your character without going through Claude:
+| character.sh | character.json |
+| --- | --- |
+| `CHAR_SIDE_WIDTH`, `CHAR_CENTER_WIDTH` | `sideWidth`, `centerWidth` |
+| `CHAR_CELL_HEIGHT`, `CHAR_TOP_HEIGHT` | `cellHeight`, `topHeight` |
+| `CHAR_FACE_HAPPY_A`, `CHAR_FACE_HAPPY_B` | `faces.happy` (a list) |
+| `CHAR_FACE_EXCITED_A`, `CHAR_FACE_EXCITED_B` | `faces.excited` (a list) |
+| `CHAR_FACE_THINKING` and the other faces | `faces.thinking` and the other moods |
+| `CHAR_TOP_LEFT`, `CHAR_TOP`, `CHAR_TOP_RIGHT` | `cells.topLeft`, `cells.top`, `cells.topRight` |
+| `CHAR_LEFT`, `CHAR_BODY`, `CHAR_RIGHT` | `cells.left`, `cells.body`, `cells.right` |
+| `CHAR_BOTTOM_LEFT`, `CHAR_BOTTOM`, `CHAR_BOTTOM_RIGHT` | `cells.bottomLeft`, `cells.bottom`, `cells.bottomRight` |
+| `CHAR_PROP_LEFT`, `CHAR_PROP_RIGHT` (with `${prop}`) | `propLeft`, `propRight` (with `{prop}`) |
+| `TOOL_INFO_BASH="⚡ happy left"` | `"tools": { "Bash": { "prop": "⚡", "mood": "happy", "side": "left" } }` |
+| `none` as a prop or a side | `null` |
 
-```bash
-# All moods × {no prop, prop-left, prop-right}
-bash bin/preview.sh
-
-# Single mood
-bash bin/preview.sh focused
-
-# Mood holding a prop
-bash bin/preview.sh excited 🪄 right
-
-# Debug: color each cell to check alignment
-bash bin/preview.sh thinking 🔧 left --debug
-```
+A `TOOL_INFO_*` variable can apply to more than one tool. In `character.json`, give a look for each tool name.

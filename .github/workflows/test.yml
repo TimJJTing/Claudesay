@@ -6,17 +6,30 @@ on:
   pull_request:
     branches: [main]
 
+permissions:
+  contents: read
+
 jobs:
   test:
-    name: Run Shell Tests
+    name: Validate and test the mod
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - name: Check out the repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
-      - name: Make test scripts executable
-        run: chmod +x tests/*.sh
+      - name: Set up Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22.23.4
 
-      - name: Run all tests
-        run: bash tests/run-all.sh
+      - name: Install Claude Code
+        run: npm install -g @anthropic-ai/claude-code@2.1.308
+
+      - name: Validate the mod
+        run: claude plugin validate .
+
+      - name: Run the tests
+        run: claude plugin test .

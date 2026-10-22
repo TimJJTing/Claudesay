@@ -1,51 +1,23 @@
 {
   "name": "claudesay",
-  "version": "2.2.2",
-  "description": "Renders Claude replies as ASCII character speech bubbles",
+  "version": "3.0.0",
+  "description": "An ASCII mascot above the prompt: it holds a prop while a tool runs and says the point of each reply",
   "author": {
     "name": "TimJJTing"
   },
   "license": "MIT",
-  "hooks": {
-    "SessionStart": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "bash ${CLAUDE_PLUGIN_ROOT}/hooks/scripts/session-start.sh"
-          }
-        ]
-      }
-    ],
-    "UserPromptSubmit": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "bash ${CLAUDE_PLUGIN_ROOT}/hooks/scripts/prompt-submit.sh"
-          }
-        ]
-      }
-    ],
-    "PreToolUse": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "bash ${CLAUDE_PLUGIN_ROOT}/hooks/scripts/pre-tool-use.sh"
-          }
-        ]
-      }
-    ],
-    "Stop": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "bash ${CLAUDE_PLUGIN_ROOT}/hooks/scripts/stop.sh"
-          }
-        ]
-      }
-    ]
+  "types": "./types/index.d.ts",
+  "userConfig": {
+    "mode": {
+      "type": "string",
+      "title": "Mode",
+      "description": "on: Claude ends each conversational reply with a short <claudesay> tag, and the mascot says it above the prompt; it also holds a prop while a tool runs. tools: props only, no protocol in the system prompt. off: no mascot.",
+      "default": "on",
+      "options": [
+        "on",
+        "tools",
+        "off"
+      ]
+    }
   }
 }
