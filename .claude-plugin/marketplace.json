@@ -1,10 +1,16 @@
 {
   "name": "claudesay",
-  "owner": { "name": "TimJJTing", "url": "https://github.com/TimJJTing" },
+  "owner": {
+    "name": "TimJJTing",
+    "url": "https://github.com/TimJJTing"
+  },
+  "metadata": {
+    "description": "claudesay: a Claude Code mod that draws an ASCII character with speech bubbles"
+  },
   "plugins": [
     {
       "name": "claudesay",
-      "description": "Renders Claude replies as ASCII character speech bubbles",
+      "description": "An ASCII mascot above the prompt: it holds a prop while a tool runs and says the point of each reply",
       "source": "./",
       "category": "productivity"
     }
