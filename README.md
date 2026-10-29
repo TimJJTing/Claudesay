@@ -35,7 +35,21 @@ While a tool runs, the band shows the tool and a prop:
     (_)    (_)╰~~>
 ```
 
-There is one character. Each new turn replaces it. claudesay does not add rows to the transcript. When you scroll back, each reply has all of its information. Refer to [The history stays complete](#the-history-stays-complete).
+When Claude starts subagents, each subagent gets a character too. It walks into the band from the left and stands to the right of the main character. Its label is the task of the subagent. When the subagent finishes, it walks off to the right:
+
+```
+      /\__/\              /\__/\              /\__/\
+     ( ._.  )            ( -.-  )            ( ^▽^  )
+   ╭╭: ,,,, :╮╮      🔍○═: ,,,, :╮╮        ╭╭: ,,,, :═○🪄
+   ○ (      ) ○          (      ) ○        ○ (      )
+     (╭....╮)            (╭....╮)            (╭....╮)
+    (_)    (_)╰~~>      (_)    (_)╰~~>      (_)    (_)╰~~>
+                       Explore repo        Run the tests
+```
+
+Refer to [Subagents](#subagents).
+
+There is one main character. Each new turn replaces its line. claudesay does not add rows to the transcript. When you scroll back, each reply has all of its information. Refer to [The history stays complete](#the-history-stays-complete).
 
 ## Requirements
 
@@ -95,7 +109,7 @@ claudesay is on after the installation. To change the mode, do these steps:
 | Mode | Result |
 | --- | --- |
 | `on` | The default. The character holds a prop while a tool runs. After a conversational reply, it says the main point of the reply. |
-| `tools` | The character holds a prop while a tool runs. The mod does not add the protocol to the system prompt, so Claude writes no tags. |
+| `tools` | The character holds a prop while a tool runs. Subagents show. The mod does not add the protocol to the system prompt, so Claude writes no tags. |
 | `off` | No character. The mod adds no hooks. Tags in older replies show as Claude wrote them. |
 
 The mod loads again immediately with the new mode. You do not have to restart the session.
@@ -108,18 +122,38 @@ claudesay is one TypeScript module, `hooks/claudesay.tsx`. Claude Code loads it 
 | --- | --- |
 | `session.start` | Reads `character.json`. |
 | `prompt.compose` | Adds the `<claudesay-protocol>` section to the system prompt, in the `on` mode and only in a session on the terminal or the desktop app. |
-| `turn.start` | Clears the last line. Reads `character.json` again, so that a change shows on the next turn. |
-| `tool.call` | Records the tools that run now. Removes each tool when it stops. The hook does not change, block or approve a tool call. |
-| `turn.complete` | Reads the tag at the end of the final answer. The tag becomes the line in the band. The mod remembers a key for the tag in its store. |
-| `ui.render` `AssistantMessage` | Removes the tag of a final answer from the reply on the screen. While a turn runs, it also hides a tag that is not complete yet. |
-| `ui.render` `AbovePrompt` | Draws the character in the band above the prompt. |
+| `turn.start` | Clears the last line. Lets the band get shorter again. Reads `character.json` again, so that a change shows on the next turn. Removes subagents that the engine no longer runs. |
+| `agent.spawn` | Adds a character for each subagent that the main loop starts. The hook does not change or block a spawn. |
+| `tool.call` | Records the tools that run now, for the main loop and for each subagent. Removes each tool when it stops. The hook does not change, block or approve a tool call. |
+| `turn.complete` | Reads the tag at the end of the final answer. The tag becomes the line in the band. The mod remembers a key for the tag in its store. If an interrupt or an error cut the reply inside its tag, the mod remembers a key for that part too. At the end of a subagent's run, its character leaves. |
+| `ui.render` `AssistantMessage` | Removes the tag of a final answer from the reply on the screen. While a turn runs, it also hides a tag that is not complete yet. After an interrupt or an error, it hides the part of the tag that was cut off. |
+| `ui.render` `AbovePrompt` | Draws the character and the subagents in the band above the prompt. |
 
-The band shows one of these, in this order:
+The main character shows one of these, in this order:
 
 1. The newest tool that runs now, with its prop.
 2. A thinking face, while Claude works and no tool runs.
 3. The line about the last reply.
-4. Nothing.
+4. A happy face, while subagents still run.
+5. Nothing.
+
+The band always has one blank row on top. This row keeps the band apart from the transcript. During a turn, the band does not get shorter. When a bubble goes away between tool calls, blank rows keep the height of the band, so the prompt does not move. The next turn lets the band get shorter again.
+
+### Subagents
+
+Each subagent that the main loop starts gets a character. The characters move on a timer. The timer runs only while a character moves.
+
+- **Start.** The character walks in from behind the main character to the next free slot. The oldest subagent stands nearest to the main character.
+- **Work.** The character holds the prop of the tool that its subagent runs now, with the same props as the main character. Between tools, it shows a thinking face. Its label is the `description` of the Agent call.
+- **Finish.** The character shows a happy face and walks off to the right. It walks in front of the other characters. Then the characters to its right move left into the free slot.
+- **Failure.** When the run of a subagent is stopped, is refused or ends with an error, its character shows the error face for approximately one second. The main character looks upset, unless it holds a prop or says a line. Then the character walks off.
+- **Too many.** When there is no slot for a character, the last slot shows `+3 more`. When a slot is free, the next character walks in. On a band narrower than approximately 38 columns, there is no slot, and the band shows `🤖×3` beside the main character.
+
+Only the main character has a speech bubble. Nested subagents, workflow agents and teammates do not show. Refer to [Known limitations](#known-limitations).
+
+If the mod does not get the end of a subagent's run, the next turn of the main loop asks the engine which agents run. A character whose agent stopped then walks off. It shows the error face only if the engine says that the agent failed or was killed.
+
+If the engine stops the timer of the characters, the next draw of the band starts it again.
 
 ### The tag
 
@@ -186,6 +220,7 @@ Possible causes:
 - **Claude did not write the tag.** The model does not always obey the protocol. This is a limitation of all prompt-based solutions.
 - **The tag said more than the final text block.** Then the tag stays in the reply, and the band does not show it. Refer to [The history stays complete](#the-history-stays-complete).
 - **The reply was only the tag.** Then the tag stays in the reply, and the band does not show it.
+- **You interrupted the reply, or it ended with an error.** Such a reply gives no line. If it ended inside its tag, the screen hides that part of the tag.
 - **The mode is `tools` or `off`.** Type `/config` and examine the claudesay mode.
 - **A new turn started.** A new turn clears the line.
 - **No band.** In `--print` mode, in an SDK host, in VS Code and on mobile, the band does not draw. The mod does not add the protocol there.
@@ -221,11 +256,35 @@ Buddy was a virtual pet in earlier versions of Claude Code. You hatched it and y
 
   **If you want a stronger check**, extend `isGrounded` in `hooks/art.ts`. Contributions are welcome.
 
-- **The band uses vertical space.** With the default character, the band is approximately 13 rows high when it shows a bubble.
+- **The band uses vertical space.** With the default character, the band is approximately 13 rows high when it shows a bubble. Subagents add one row for their labels. During a turn, the band keeps its tallest height, also when the bubble goes away.
 
-  **If you want a smaller band**, give a smaller character in `character.json`. Refer to [CHARACTER_CUSTOMIZATION.md](CHARACTER_CUSTOMIZATION.md). A compact mode with the face only is not shipped. Contributions are welcome.
+  **Why we stop here:** A band that gets shorter and taller between tool calls moves the prompt up and down. A stable prompt is easier to read and to type in.
 
-- **The band shows one tool.** When Claude runs tools in parallel, the band shows the newest tool that still runs.
+  **If you want a smaller band**, give a smaller character in `character.json`. Refer to [CHARACTER_CUSTOMIZATION.md](CHARACTER_CUSTOMIZATION.md). To let the band get shorter during a turn, change how the `AbovePrompt` hook in `hooks/claudesay.tsx` uses `tallest`. A compact mode with the face only is not shipped. Contributions are welcome.
+
+- **The band shows one tool.** When Claude runs tools in parallel, the band shows the newest tool that still runs. This applies to each subagent character too.
+
+  **Why we stop here:** A character has two hands and one bubble. More tools do not fit.
+
+  **If you want to show more tools**, the `running` list in `hooks/claudesay.tsx` already holds all the tools that run now. Draw a count of the others in the bubble, for example `Edit → /repo/README.md (+2)`. A crewmate keeps only its newest tool in `look` and `toolId`. Not shipped. Contributions are welcome.
+
+- **Subagent characters have no bubble.** A subagent character has a label, its task. It does not have a line about its work.
+
+  **Why we stop here:** Bubbles side by side are too narrow to read. A subagent's report goes to Claude, not to you, so the protocol tells subagents not to write a tag.
+
+  **If you want a bubble for subagents**, show the tool label of the subagent above its slot. `drawCrew` in `hooks/crew.ts` draws the crew, and each `Crewmate` keeps its current tool in `look`. Keep the label in the slot width, or one long label covers the next slot. Not shipped. Contributions are welcome.
+
+- **Nested subagents, workflow agents and teammates do not show.** The band shows only the subagents that the main loop starts.
+
+  **Why we stop here:** A workflow can start many agents, and nested agents are details of the work of one subagent. One character for each subagent of the main loop keeps the band readable. A teammate stops between its turns, and a teammate in its own pane runs no loop in this session, so the mod does not know when it ends.
+
+  **If you want to show them**, change the filter in the `agent.spawn` hook in `hooks/claudesay.tsx`: it skips a spawn with `parentAgentId`, `workflow` or `isTeammate`. A nested character could stand behind its parent. A workflow agent's `turn.complete` can come from a remote agent with no local loop, so its character may not leave. Use the sweep in `sweepCrew` for those. For a teammate, keep the character in the `turn.complete` hook while `$.agent.list()` says `idle`. The engine can keep a pane teammate at `running` or `idle` after its pane closes, so the sweep needs another sign that it ended. Not shipped. Contributions are welcome.
+
+- **Characters overlap when one walks past another.** A character that leaves walks in front of the characters to its right. For approximately one second, the art of the two characters overlaps.
+
+  **Why we stop here:** The walk is short, and a path around the other characters needs more rows.
+
+  **If you want a path around them**, change `targetOf` and `stepCrew` in `hooks/crew.ts`. `drawCrew` draws a character that leaves in front of the others. Not shipped. Contributions are welcome.
 
 - **The band is not available on all surfaces.** Claude Code draws `AbovePrompt` on the terminal and on the desktop app only. A session on VS Code or mobile does not get the protocol and does not show the character.
 
@@ -249,11 +308,13 @@ claudesay/
 ├── hooks/
 │   ├── hooks.json            # Names the hooks module.
 │   ├── claudesay.tsx         # The hooks module: events, state, tag removal and the band.
-│   └── art.ts                # Pure functions: character, bubble, tag parse, tag check, tool props.
+│   ├── art.ts                # Pure functions: character, bubble, tag parse, tag check, tool props.
+│   └── crew.ts               # Pure functions: subagent slots, the steps of the walk, the crew drawing.
 ├── types/
 │   └── index.d.ts            # State contract and shared types.
 ├── tests/
 │   ├── art.test.ts           # Unit tests for art.ts.
+│   ├── crew.test.ts          # Unit tests for crew.ts.
 │   └── claudesay.test.tsx    # Tests for the hooks against the Claude Code engine.
 ├── tsconfig.json             # Type-check configuration.
 ├── README.md

@@ -30,6 +30,8 @@ These are the limits:
 
 The mod removes control characters from all lines before it draws them.
 
+Subagents use the same character. Each subagent takes a slot of `2 × sideWidth + centerWidth + 2` columns. A wide character gives fewer slots. On a band narrower than two slots less 2 columns, there is no slot, and the band shows only a count of the subagents. With the default character, a slot is 20 columns, so this occurs below 38 columns. Refer to [Subagents](README.md#subagents).
+
 ## Example
 
 This file changes the focused face, gives the character a hat and changes the prop for Bash:
