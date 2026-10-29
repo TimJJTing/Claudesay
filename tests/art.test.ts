@@ -12,6 +12,7 @@ import {
   parseReply,
   sanitizeOverride,
   toolLabel,
+  unfinishedTag,
   withOverride,
   wrap,
 } from '../hooks/art.ts'
@@ -38,6 +39,13 @@ describe('parseReply', () => {
     expect(parseReply('Done.\n<claudesay mood="hap', true).text).toBe('Done.')
     expect(parseReply('Done.\n<clau', true).text).toBe('Done.')
     expect(parseReply('I renamed <claudesay> handling in art.ts.').text).toBe('I renamed <claudesay> handling in art.ts.')
+  })
+
+  test('unfinishedTag gives the tag that an interrupt cut, and null otherwise', async () => {
+    expect(unfinishedTag('Done.\n<claudesay mood="hap')).toBe('<claudesay mood="hap')
+    expect(unfinishedTag('Done.\n<clau')).toBe('<clau')
+    expect(unfinishedTag('Done.\n<claudesay mood="happy">Done.</claudesay>')).toBeNull()
+    expect(unfinishedTag('I renamed <claudesay> handling in art.ts.')).toBeNull()
   })
 
   test('a reply that is only a tag stays as it is', async () => {
@@ -69,7 +77,7 @@ describe('parseReply', () => {
     expect(parseReply(reply)).toEqual({ text: reply, says: null, tag: null })
   })
 
-  test('cuts a long line and removes control characters', async () => {
+  test('keeps a tag that is too long, and removes control characters from the line', async () => {
     const longTag = `${'a '.repeat(10)}\n<claudesay mood="happy">${'a '.repeat(200)}</claudesay>`
     expect(parseReply(longTag)).toEqual({ text: longTag, says: null, tag: null })
     expect(parseReply('ok\n<claudesay mood="happy">a\u001b]52;c;eA==\u0007b\u202e</claudesay>').says).toBeNull()

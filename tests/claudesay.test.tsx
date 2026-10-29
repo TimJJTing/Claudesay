@@ -141,6 +141,48 @@ test('while a turn runs, a tag that is not complete yet is hidden', async ($, on
   await ui.unmount()
 })
 
+test('after an interrupt, the tag that it cut stays hidden, in this session and later ones', async ($, on) => {
+  const shown = engine(on)
+  await $.session.start({ cwd: '/', surface: 'terminal', isInteractive: true })
+  const interrupted = 'Did it stay that way?\n\n<claudesay mood="thinking'
+  await $.turn.start({ text: 'go', turnId: 't1' })
+  await $.turn.complete({ turnId: 't1', answer: interrupted, durationMs: 1, isAborted: true, reason: 'aborted' })
+  const ui = await $.ui.mount(reply(interrupted))
+  await ui.unmount()
+  await $.session.start({ cwd: '/', surface: 'terminal', isInteractive: true })
+  const later = await $.ui.mount(reply(interrupted))
+  await later.unmount()
+  expect(shown).toEqual(['Did it stay that way?', 'Did it stay that way?'])
+})
+
+test('a tag that an error cut, or a whole tag in an interrupted reply, stays hidden and gives no line', async ($, on) => {
+  const shown = engine(on)
+  await $.session.start({ cwd: '/', surface: 'terminal', isInteractive: true })
+  const errored = 'All done.\n\n<claudesay mood="hap'
+  await $.turn.start({ text: 'go', turnId: 't1' })
+  await $.turn.complete({ turnId: 't1', answer: errored, durationMs: 1, isAborted: false, reason: 'error' })
+  await $.turn.start({ text: 'go', turnId: 't2' })
+  await $.turn.complete({ turnId: 't2', answer: ANSWER, durationMs: 1, isAborted: true, reason: 'aborted' })
+  for (const text of [errored, ANSWER]) {
+    const ui = await $.ui.mount(reply(text))
+    await ui.unmount()
+  }
+  expect(shown).toEqual(['All done.', REPLY_TEXT])
+  const band = await $.ui.mount({ ...BAND(), surface: 'terminal' })
+  expect(await band.find({ type: 'Text', text: /engine/ })).toBeDefined()
+  await band.unmount()
+})
+
+test('a finished reply that ends like a cut tag keeps it, when no interrupt cut it', async ($, on) => {
+  const shown = engine(on)
+  await $.session.start({ cwd: '/', surface: 'terminal', isInteractive: true })
+  const prose = 'The tag opens with:\n<claudesay'
+  await turn($, 't1', prose)
+  const ui = await $.ui.mount(reply(prose))
+  expect(shown).toEqual([prose])
+  await ui.unmount()
+})
+
 test('a summary row and a reply without a tag are left to the engine', async ($, on) => {
   const shown = engine(on)
   await $.session.start({ cwd: '/', surface: 'terminal', isInteractive: true })
@@ -221,6 +263,31 @@ test('the band shows the character with a prop while a tool runs', async ($, on)
   const after = await $.ui.mount({ ...BAND(), surface: 'terminal' })
   expect(await after.find({ type: 'Text', text: /engine/ })).toBeDefined()
   await after.unmount()
+})
+
+test('the band keeps its height through a turn, with a blank row on top, and shrinks at the next turn', async ($, on) => {
+  engine(on)
+  const height = async () => {
+    const ui = await $.ui.mount({ ...BAND(true), surface: 'terminal' })
+    const texts = (await ui.findAll({ type: 'Text' })).map(node => node.text)
+    await ui.unmount()
+    return texts
+  }
+  let during: string[] = []
+  on('tool.call', async () => {
+    during = await height()
+    return { result: {} }
+  })
+  await $.session.start({ cwd: '/', surface: 'terminal', isInteractive: true })
+  await $.turn.start({ text: 'go', turnId: 't1' })
+  const thinking = await height()
+  expect(thinking[0]).toBe(' ')
+  await $.tool.call({ tool: 'Read', file_path: '/a' })
+  expect(during.length).toBeGreaterThan(thinking.length)
+  expect((await height()).length).toBe(during.length)
+  await $.turn.complete({ turnId: 't1', answer: 'ok', durationMs: 1, isAborted: false, reason: 'answer' })
+  await $.turn.start({ text: 'go', turnId: 't2' })
+  expect((await height()).length).toBe(thinking.length)
 })
 
 test('two tool calls at once: the band keeps the one that still runs', async ($, on) => {
@@ -339,4 +406,203 @@ test('a narrow screen still draws, with no error', async ($, on) => {
   const ui = await $.ui.mount({ ...band, props: { ...band.props, bodyColumns: 10 }, surface: 'terminal' })
   expect(await ui.find({ type: 'Text', text: /tests/ })).toBeDefined()
   await ui.unmount()
+})
+
+// Stands for the engine's agents: each spawn starts one, and the list holds
+// the ones that `running` names.
+function agents(on: On, running: Set<string>) {
+  let count = 0
+  on('agent.spawn', () => {
+    const agentId = `agent-${++count}`
+    running.add(agentId)
+    return { agentId, model: 'm' }
+  })
+  on('agent.list', () => ({
+    value: [...running].map(id => ({ id, description: '', type: 'general-purpose', status: 'running' as const })),
+  }))
+}
+
+const spawn = (description: string, extra: { parentAgentId?: string; isTeammate?: true } = {}) => ({
+  tool_use_id: `use-${description}`,
+  prompt: 'Do the task.',
+  description,
+  subagentType: 'general-purpose',
+  provider: { plugin: 'engine', tier: 'core' as const },
+  parentModel: 'm',
+  background: false,
+  fork: false,
+  ...extra,
+})
+
+const bandText = async ($: Engine, isWorking = true) => {
+  const ui = await $.ui.mount({ ...BAND(isWorking), surface: 'terminal' })
+  const texts = (await ui.findAll({ type: 'Text' })).map(node => node.text)
+  await ui.unmount()
+  return texts.join('\n')
+}
+
+test('a spawned agent walks into the band, holds its tool and walks off when done', async ($, on) => {
+  engine(on)
+  const clock = mock.clock(on)
+  agents(on, new Set())
+  let during = ''
+  on('tool.call', async () => {
+    during = await bandText($)
+    return { result: {} }
+  })
+  await $.session.start({ cwd: '/', surface: 'terminal', isInteractive: true })
+  await $.turn.start({ text: 'go', turnId: 't1' })
+
+  const { agentId } = await $.agent.spawn(spawn('Explore repo'))
+  expect(await bandText($)).not.toContain('Explore repo')
+  await clock.advance(5000)
+  expect(await bandText($)).toContain('Explore repo')
+
+  await $.tool.call({ tool: 'Read', file_path: '/repo/a.ts', agentId })
+  expect(during).toContain('📖○═')
+
+  await $.turn.complete({ turnId: 's1', answer: 'Found it.', durationMs: 1, isAborted: false, reason: 'answer', agentId })
+  await clock.advance(5000)
+  expect(await bandText($)).not.toContain('Explore repo')
+})
+
+test('an agent whose turn is aborted shows the error face, and the character is upset, before it leaves', async ($, on) => {
+  engine(on)
+  const clock = mock.clock(on)
+  agents(on, new Set())
+  await $.session.start({ cwd: '/', surface: 'terminal', isInteractive: true })
+  await $.turn.start({ text: 'go', turnId: 't1' })
+  const { agentId } = await $.agent.spawn(spawn('Run the tests'))
+  await clock.advance(5000)
+
+  await $.turn.complete({ turnId: 's1', answer: '', durationMs: 1, isAborted: true, reason: 'aborted', agentId })
+  await clock.advance(120)
+  const text = await bandText($)
+  expect(text).toContain('x_x')
+  expect(text).toContain('>_<')
+  await clock.advance(10000)
+  expect(await bandText($)).not.toContain('Run the tests')
+})
+
+test('agents that keep running stay beside the line about the reply', async ($, on) => {
+  engine(on)
+  const clock = mock.clock(on)
+  agents(on, new Set())
+  await $.session.start({ cwd: '/', surface: 'terminal', isInteractive: true })
+  await $.turn.start({ text: 'go', turnId: 't1' })
+  await $.agent.spawn(spawn('Review auth'))
+  await clock.advance(5000)
+  await $.turn.complete({ turnId: 't1', answer: ANSWER, durationMs: 1, isAborted: false, reason: 'answer' })
+
+  const text = await bandText($, false)
+  expect(text).toContain('33 tests pass.')
+  expect(text).toContain('Review auth')
+})
+
+test('a nested agent stays out of the band', async ($, on) => {
+  engine(on)
+  const clock = mock.clock(on)
+  agents(on, new Set())
+  await $.session.start({ cwd: '/', surface: 'terminal', isInteractive: true })
+  await $.agent.spawn(spawn('Nested dig', { parentAgentId: 'agent-0' }))
+  await clock.advance(5000)
+  expect(await bandText($)).not.toContain('Nested dig')
+})
+
+test('a teammate stays out of the band', async ($, on) => {
+  engine(on)
+  const clock = mock.clock(on)
+  agents(on, new Set())
+  await $.session.start({ cwd: '/', surface: 'terminal', isInteractive: true })
+  await $.agent.spawn(spawn('Team reviewer', { isTeammate: true }))
+  await clock.advance(5000)
+  expect(await bandText($)).not.toContain('Team reviewer')
+})
+
+test('a crew timer whose period was refused starts again at the next draw', async ($, on) => {
+  engine(on)
+  agents(on, new Set())
+  // A clock of its own, because mock.clock cannot refuse a period.
+  let now = 0
+  let refuse = true
+  const due: (() => void)[] = []
+  const { setTimeout } = globalThis as unknown as { setTimeout: (fn: () => void, ms: number) => void }
+  on('clock.now', () => ({ value: now }))
+  on('clock.every', () =>
+    refuse ? { deny: 'paused' } : new Promise<{ value: undefined }>(resolve => due.push(() => resolve({ value: undefined }))),
+  )
+  const advance = async (ms: number) => {
+    for (let t = 0; t < ms; t += 60) {
+      now += 60
+      for (const resolve of due.splice(0)) resolve()
+      await new Promise<void>(resolve => setTimeout(resolve, 0))
+    }
+  }
+  await $.session.start({ cwd: '/', surface: 'terminal', isInteractive: true })
+  await $.turn.start({ text: 'go', turnId: 't1' })
+  await $.agent.spawn(spawn('Explore repo'))
+  await advance(3000)
+  expect(await bandText($)).not.toContain('Explore repo')
+  refuse = false
+  // That draw started the timer again, and its period was refused too. The next
+  // draw past STALL starts it once more.
+  await advance(1000)
+  await bandText($)
+  await advance(3000)
+  expect(await bandText($)).toContain('Explore repo')
+})
+
+test('an agent that is no longer listed leaves without the error face', async ($, on) => {
+  engine(on)
+  const clock = mock.clock(on)
+  const running = new Set<string>()
+  agents(on, running)
+  await $.session.start({ cwd: '/', surface: 'terminal', isInteractive: true })
+  await $.turn.start({ text: 'go', turnId: 't1' })
+  const { agentId } = await $.agent.spawn(spawn('Quiet agent'))
+  await clock.advance(5000)
+  running.delete(agentId!)
+  await $.turn.start({ text: 'next', turnId: 't2' })
+  await clock.advance(120)
+  const text = await bandText($)
+  expect(text).not.toContain('x_x')
+  expect(text).not.toContain('>_<')
+})
+
+test('an agent whose end was not heard leaves at the next turn', async ($, on) => {
+  engine(on)
+  const clock = mock.clock(on)
+  const running = new Set<string>()
+  agents(on, running)
+  await $.session.start({ cwd: '/', surface: 'terminal', isInteractive: true })
+  await $.turn.start({ text: 'go', turnId: 't1' })
+  const { agentId } = await $.agent.spawn(spawn('Lost agent'))
+  await clock.advance(5000)
+  running.delete(agentId!)
+
+  await $.turn.start({ text: 'next', turnId: 't2' })
+  await clock.advance(10000)
+  expect(await bandText($)).not.toContain('Lost agent')
+})
+
+test('a narrower band moves the crew that does not fit out of sight', async ($, on) => {
+  engine(on)
+  const clock = mock.clock(on)
+  agents(on, new Set())
+  await $.session.start({ cwd: '/', surface: 'terminal', isInteractive: true })
+  await $.turn.start({ text: 'go', turnId: 't1' })
+  await $.agent.spawn(spawn('Explore repo'))
+  await $.agent.spawn(spawn('Run the tests'))
+  await clock.advance(5000)
+  expect(await bandText($)).toContain('Run the tests')
+
+  const band = BAND(true)
+  const narrow = { ...band, props: { ...band.props, bodyColumns: 30 }, surface: 'terminal' as const }
+  await (await $.ui.mount(narrow)).unmount()
+  await clock.advance(5000)
+  const ui = await $.ui.mount(narrow)
+  const text = (await ui.findAll({ type: 'Text' })).map(node => node.text).join('\n')
+  await ui.unmount()
+  expect(text).toContain('🤖×2')
+  expect(text).not.toContain('Explore repo')
 })
