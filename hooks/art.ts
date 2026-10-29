@@ -487,6 +487,13 @@ export function parseReply(reply: string, streaming = false): Parsed {
   return { text: reply, says: null, tag: null }
 }
 
+// The tag at the end of a reply that is not complete, as parseReply takes it off
+// while the reply streams, or null. A reply that an interrupt cut ends with one.
+export function unfinishedTag(reply: string): string | null {
+  const { text, tag } = parseReply(reply, true)
+  return tag === null && text !== reply ? reply.slice(text.length).trim() : null
+}
+
 // A short key for a tag (FNV-1a). The mod keeps the keys of final answers, and
 // takes a tag off the screen only in a final answer.
 export function tagKey(tag: string): string {

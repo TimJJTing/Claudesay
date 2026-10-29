@@ -12,6 +12,7 @@ import {
   parseReply,
   sanitizeOverride,
   toolLabel,
+  unfinishedTag,
   withOverride,
   wrap,
 } from '../hooks/art.ts'
@@ -38,6 +39,13 @@ describe('parseReply', () => {
     expect(parseReply('Done.\n<claudesay mood="hap', true).text).toBe('Done.')
     expect(parseReply('Done.\n<clau', true).text).toBe('Done.')
     expect(parseReply('I renamed <claudesay> handling in art.ts.').text).toBe('I renamed <claudesay> handling in art.ts.')
+  })
+
+  test('unfinishedTag gives the tag that an interrupt cut, and null otherwise', async () => {
+    expect(unfinishedTag('Done.\n<claudesay mood="hap')).toBe('<claudesay mood="hap')
+    expect(unfinishedTag('Done.\n<clau')).toBe('<clau')
+    expect(unfinishedTag('Done.\n<claudesay mood="happy">Done.</claudesay>')).toBeNull()
+    expect(unfinishedTag('I renamed <claudesay> handling in art.ts.')).toBeNull()
   })
 
   test('a reply that is only a tag stays as it is', async () => {

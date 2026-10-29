@@ -15,6 +15,7 @@ import {
   tagKey,
   sanitizeOverride,
   toolLabel,
+  unfinishedTag,
   withOverride,
 } from './art.ts'
 
@@ -74,6 +75,14 @@ async function loadOverride($: EngineInterface): Promise<CharacterOverride | nul
 
 async function character($: EngineInterface) {
   return withOverride(DEFAULT_CHARACTER, await read($, override))
+}
+
+// Remembers the key of a tag, so the screen hides it, in this session and later ones.
+async function remember($: EngineInterface, tag: string) {
+  const key = tagKey(tag)
+  const keys = [...((await read($, finals)) ?? []).filter(one => one !== key), key].slice(-MAX_FINALS)
+  await update($, finals, () => keys)
+  await $.store.set('finals', keys)
 }
 
 export const register: Register = (on, options) => {
@@ -139,12 +148,10 @@ export const register: Register = (on, options) => {
       if (e.agentId !== undefined) return result
       await update($, running, () => [])
       const { says, tag } = e.reason === 'answer' ? parseReply(e.answer) : { says: null, tag: null }
-      if (tag !== null) {
-        const key = tagKey(tag)
-        const keys = [...((await read($, finals)) ?? []).filter(one => one !== key), key].slice(-MAX_FINALS)
-        await update($, finals, () => keys)
-        await $.store.set('finals', keys)
-      }
+      if (tag !== null) await remember($, tag)
+      // An interrupt can cut the reply inside its tag. The screen hides that part too.
+      const cutOff = e.reason === 'aborted' ? unfinishedTag(e.answer) : null
+      if (cutOff !== null) await remember($, cutOff)
       if (mode === 'on') await update($, saying, () => says)
       return result
     } finally {
@@ -162,7 +169,12 @@ export const register: Register = (on, options) => {
   on('ui.render', { component: 'AssistantMessage' }, async ($, e, next) => {
     if (e.props.isSummary === true) return next(e)
     const isStreaming = (await read($, streaming)) === true
-    const { text, tag } = parseReply(e.props.text, isStreaming)
+    let { text, tag } = parseReply(e.props.text, isStreaming)
+    if (text === e.props.text && !isStreaming) {
+      // A reply that an interrupt cut inside its tag. The mod remembered that tag.
+      const cutOff = unfinishedTag(e.props.text)
+      if (cutOff !== null && ((await read($, finals)) ?? []).includes(tagKey(cutOff))) text = parseReply(e.props.text, true).text
+    }
     if (text === e.props.text) return next(e)
     if (tag !== null && !isStreaming && !((await read($, finals)) ?? []).includes(tagKey(tag))) return next(e)
     if (text === '') {

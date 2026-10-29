@@ -141,6 +141,30 @@ test('while a turn runs, a tag that is not complete yet is hidden', async ($, on
   await ui.unmount()
 })
 
+test('after an interrupt, the tag that it cut stays hidden, in this session and later ones', async ($, on) => {
+  const shown = engine(on)
+  await $.session.start({ cwd: '/', surface: 'terminal', isInteractive: true })
+  const interrupted = 'Did it stay that way?\n\n<claudesay mood="thinking'
+  await $.turn.start({ text: 'go', turnId: 't1' })
+  await $.turn.complete({ turnId: 't1', answer: interrupted, durationMs: 1, isAborted: true, reason: 'aborted' })
+  const ui = await $.ui.mount(reply(interrupted))
+  await ui.unmount()
+  await $.session.start({ cwd: '/', surface: 'terminal', isInteractive: true })
+  const later = await $.ui.mount(reply(interrupted))
+  await later.unmount()
+  expect(shown).toEqual(['Did it stay that way?', 'Did it stay that way?'])
+})
+
+test('a finished reply that ends like a cut tag keeps it, when no interrupt cut it', async ($, on) => {
+  const shown = engine(on)
+  await $.session.start({ cwd: '/', surface: 'terminal', isInteractive: true })
+  const prose = 'The tag opens with:\n<claudesay'
+  await turn($, 't1', prose)
+  const ui = await $.ui.mount(reply(prose))
+  expect(shown).toEqual([prose])
+  await ui.unmount()
+})
+
 test('a summary row and a reply without a tag are left to the engine', async ($, on) => {
   const shown = engine(on)
   await $.session.start({ cwd: '/', surface: 'terminal', isInteractive: true })
