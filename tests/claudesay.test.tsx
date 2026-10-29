@@ -155,6 +155,24 @@ test('after an interrupt, the tag that it cut stays hidden, in this session and 
   expect(shown).toEqual(['Did it stay that way?', 'Did it stay that way?'])
 })
 
+test('a tag that an error cut, or a whole tag in an interrupted reply, stays hidden and gives no line', async ($, on) => {
+  const shown = engine(on)
+  await $.session.start({ cwd: '/', surface: 'terminal', isInteractive: true })
+  const errored = 'All done.\n\n<claudesay mood="hap'
+  await $.turn.start({ text: 'go', turnId: 't1' })
+  await $.turn.complete({ turnId: 't1', answer: errored, durationMs: 1, isAborted: false, reason: 'error' })
+  await $.turn.start({ text: 'go', turnId: 't2' })
+  await $.turn.complete({ turnId: 't2', answer: ANSWER, durationMs: 1, isAborted: true, reason: 'aborted' })
+  for (const text of [errored, ANSWER]) {
+    const ui = await $.ui.mount(reply(text))
+    await ui.unmount()
+  }
+  expect(shown).toEqual(['All done.', REPLY_TEXT])
+  const band = await $.ui.mount({ ...BAND(), surface: 'terminal' })
+  expect(await band.find({ type: 'Text', text: /engine/ })).toBeDefined()
+  await band.unmount()
+})
+
 test('a finished reply that ends like a cut tag keeps it, when no interrupt cut it', async ($, on) => {
   const shown = engine(on)
   await $.session.start({ cwd: '/', surface: 'terminal', isInteractive: true })

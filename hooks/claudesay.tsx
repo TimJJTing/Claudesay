@@ -147,12 +147,13 @@ export const register: Register = (on, options) => {
       const result = await next(e)
       if (e.agentId !== undefined) return result
       await update($, running, () => [])
-      const { says, tag } = e.reason === 'answer' ? parseReply(e.answer) : { says: null, tag: null }
+      const { says, tag } = parseReply(e.answer)
       if (tag !== null) await remember($, tag)
-      // An interrupt can cut the reply inside its tag. The screen hides that part too.
-      const cutOff = e.reason === 'aborted' ? unfinishedTag(e.answer) : null
+      // An interrupt, a refusal or an error can cut the reply inside its tag. The
+      // screen hides that part too. Only an answer gives a line.
+      const cutOff = e.reason === 'answer' ? null : unfinishedTag(e.answer)
       if (cutOff !== null) await remember($, cutOff)
-      if (mode === 'on') await update($, saying, () => says)
+      if (mode === 'on') await update($, saying, () => (e.reason === 'answer' ? says : null))
       return result
     } finally {
       // Always, so a failed hook cannot leave unfinished tags hidden.
