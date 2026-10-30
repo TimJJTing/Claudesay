@@ -5,26 +5,32 @@ export type Side = 'left' | 'right'
 // What the character holds for one tool. `prop: null` means empty hands.
 export type ToolLook = { prop: string | null; mood: Mood; side: Side | null }
 
-// A tool call that runs now. The band above the prompt shows the newest one.
+// A tool call that runs now. The pane shows the newest one.
 export type ActiveTool = { id: string; label: string; look: ToolLook }
 
-// A subagent that the main loop spawned, drawn as a small character to the
-// right of the main one. `label` is the task under its feet. `look` is the tool
-// that its agent runs now, and `toolId` the id of that call. `x` is its column
-// in the band now (negative is behind the main character). `phase` is `work`
-// while it runs; `done` and `failed` walk it off to the right. A crewmate that
-// failed first stands still for `hold` ticks.
-export type Crewmate = {
+// A character on its way down to its slot, the main one or a crewmate: `x` is
+// its column in its row of the pane, `y` how many rows over its slot it is now,
+// and `plane` the column of the left end of the plane that brings it, or null.
+export type Drop = { x: number; y: number; plane: number | null }
+
+// A subagent that the main loop spawned, drawn as a small character in the
+// slots after the main one, where it floats down as a Drop (an `x` below 0 is
+// out of sight). `label` is the task under its feet. `look` is the tool that
+// its agent runs now, and `toolId` the id of that call. `phase` is `work` while
+// it runs; `done` and `failed` send it off as a spark, and `spark` counts the
+// ticks of the spark. A crewmate that failed first stands still for `hold` ticks.
+export type Crewmate = Drop & {
   id: string
   label: string
   look: ToolLook | null
   toolId: string | null
-  x: number
+  spark: number
   phase: 'work' | 'done' | 'failed'
   hold: number
 }
 
-// What the character says about the last reply: the <claudesay> tag at its end.
+// What the character says: a mood and the line that the small model wrote
+// about the last reply (parseSaid), or the greeting.
 export type Saying = { mood: Mood; line: string }
 
 // The shape of ~/.claude/claudesay/character.json. Every field is optional:
@@ -57,13 +63,12 @@ declare module 'claude-code' {
     claudesay: {
       running: ActiveTool[]
       saying: Saying | null
-      // True while a main-loop turn runs, so a tag that is not complete yet is hidden.
-      streaming: boolean
-      // The keys (tagKey) of the tags at the end of final answers, and of the tags
-      // that an interrupt or an error cut. Kept in the store too.
-      finals: string[]
+      // True while a main-loop turn runs, and until the line about its answer comes.
+      working: boolean
       character: CharacterOverride | null
       crew: Crewmate[]
+      // The drop of the main character, while it floats down into a pane that just opened.
+      landing: Drop | null
     }
   }
 }

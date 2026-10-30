@@ -1,7 +1,7 @@
 {
   "name": "claudesay",
   "version": "3.0.0",
-  "description": "An ASCII mascot above the prompt: it holds a prop while a tool runs and says the point of each reply",
+  "description": "An ASCII mascot in a pane beside the chat: it holds a prop while a tool runs and says the point of each reply",
   "author": {
     "name": "TimJJTing"
   },
@@ -11,7 +11,7 @@
     "mode": {
       "type": "string",
       "title": "Mode",
-      "description": "on: Claude ends each conversational reply with a short <claudesay> tag, and the mascot says it above the prompt; it also holds a prop while a tool runs. tools: props only, no protocol in the system prompt. off: no mascot.",
+      "description": "on: after each conversational reply, a small model (Haiku) writes one line, and the mascot says it in its pane; it also holds a prop while a tool runs. tools: props only, no model calls. off: no mascot.",
       "default": "on",
       "options": [
         "on",

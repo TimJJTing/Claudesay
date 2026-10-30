@@ -26,23 +26,26 @@ These are the limits:
 | `topHeight` | An integer from 0 to 40. |
 | A cell or a prop template | A list of 20 strings or less. |
 | One line, one face or one prop | 200 characters or less. |
-| `tools` | 500 tools or less. |
+| `tools` | 500 tools or less. The mod ignores the tools after the first 500, and shows no message. |
 
 The mod removes control characters from all lines before it draws them.
 
-Subagents use the same character. Each subagent takes a slot of `2 × sideWidth + centerWidth + 2` columns. A wide character gives fewer slots. On a band narrower than two slots less 2 columns, there is no slot, and the band shows only a count of the subagents. With the default character, a slot is 20 columns, so this occurs below 38 columns. Refer to [Subagents](README.md#subagents).
+Subagents use the same character. Each subagent takes a slot of `2 × sideWidth + centerWidth + 2` columns. With the default character, a slot is 20 columns. A row of the pane holds as many slots as its width allows, so a pane narrower than 38 columns puts each subagent in a row of its own below the main character. A wider or taller character gives fewer slots. When the pane has no room for a second slot, it shows only a count of the subagents. The parachute follows `centerWidth`. The plane has a fixed width. Refer to [Subagents](README.md#subagents).
+
+The first line of the default `top` cell is empty. This empty row keeps a row of subagents apart from the labels of the row above. If your `top` cell has no empty first line, add one to keep this space.
 
 ## Example
 
-This file changes the focused face, gives the character a hat and changes the prop for Bash:
+This file changes the focused face, gives the character a hat in one more top row and changes the prop for Bash:
 
 ```json
 {
   "faces": {
     "focused": "( •_•  )"
   },
+  "topHeight": 3,
   "cells": {
-    "top": ["  ___  ", " /\\__/\\ "]
+    "top": ["", "  ___  ", " /\\__/\\ "]
   },
   "tools": {
     "Bash": { "prop": "⚡", "side": "left" }
@@ -94,10 +97,10 @@ Give one face as a string. Give two or more faces as a list. When a mood has a l
 | --- | --- | --- |
 | `happy` | `["( ^ᵕ^  )", "( ᵕ‿ᵕ  )"]` | Success. |
 | `excited` | `["( ^▽^  )", "( ≧▽≦  )"]` | Success. |
-| `thinking` | `"( ._.  )"` | Work in progress, or not sure. The band also shows it while Claude works and no tool runs. |
+| `thinking` | `"( ._.  )"` | Work in progress, or not sure. The pane also shows it while Claude works and no tool runs. |
 | `focused` | `"( -.-  )"` | Work, or a command that runs. |
-| `upset` | `"( >_<  )"` | A warning, or a partial failure. |
-| `error` | `"( x_x  )"` | A failure. |
+| `upset` | `"( >_<  )"` | A warning, or a partial failure. The main character also shows it while a subagent shows the error face. |
+| `error` | `"( x_x  )"` | A failure. A subagent shows it when its run fails. |
 
 ```json
 {

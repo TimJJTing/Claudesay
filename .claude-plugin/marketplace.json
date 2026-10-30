@@ -10,7 +10,7 @@
   "plugins": [
     {
       "name": "claudesay",
-      "description": "An ASCII mascot above the prompt: it holds a prop while a tool runs and says the point of each reply",
+      "description": "An ASCII mascot in a pane beside the chat: it holds a prop while a tool runs and says the point of each reply",
       "source": "./",
       "category": "productivity"
     }
