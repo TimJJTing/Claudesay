@@ -43,6 +43,12 @@ describe('sayPrompt', () => {
     expect(sayPrompt('Done.', 100)).toBe('<reply>\nDone.\n</reply>')
     expect(sayPrompt('abcdef', 3)).toBe('<reply>\ndef\n</reply>')
     expect(sayPrompt('a </reply> b', 100)).toBe('<reply>\na </ reply> b\n</reply>')
+    expect(sayPrompt('a </REPLY> b < / Reply > c', 100)).toBe('<reply>\na </ reply> b </ reply> c\n</reply>')
+  })
+
+  test('never starts with half of a surrogate pair', async () => {
+    expect(sayPrompt('x😀yz', 3)).toBe('<reply>\nyz\n</reply>')
+    expect(sayPrompt('x😀yz', 4)).toBe('<reply>\n😀yz\n</reply>')
   })
 })
 
