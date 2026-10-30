@@ -162,6 +162,7 @@ Now and then, a bird (`\v/`, wings up, and `-v-`, wings level) flies across the 
 Each subagent that the main loop (Claude's own conversation, not a subagent) starts gets a character.
 
 - **Start.** The character goes to the next free slot. The slots fill in reading order: first the row of the main character, then the rows below. The oldest subagent stands nearest to the main character. The label shows in the slot at once, and the character floats down to it under a canopy. In the docked pane, a plane flies from left to right along the top of the pane, and the character jumps when the door of the plane is over its slot. In the inline pane, there is no plane, and the character starts just over the top of the pane. While subagents show, the label of the main character is `Captain`.
+- **Already running.** When the pane opens, for example at the start of a session or with `/claudesay`, subagents that already run drop in with the main character. A character that is finishing or failed stays in its slot. A subagent that started while the mod was off comes in at the next turn.
 - **Work.** The character holds the prop of the tool that its subagent runs now. It uses the same props as the main character. Between tools, it shows a thinking face. While it floats down or moves to another slot, it looks happy. Its label is the `description` of the Agent call, or the agent type if the call has none. A long label is cut to the slot.
 - **Wait.** A subagent can start background work, for example a long command, and stop until it is done. Its character stays in its slot during the wait. When the subagent continues, the character does not float down again.
 - **Finish.** The character turns into a spark ✦. The spark twinkles for approximately half a second, then the character and its label are gone. The characters after it move into the free slot. A character that is still in the plane is gone at once.
@@ -363,7 +364,7 @@ The pane shows only the subagents that the main loop starts.
 
 **Why we stop here:** A workflow can start many agents, and nested agents are details of the work of one subagent. One character for each subagent of the main loop keeps the pane readable. A teammate stops between its turns, and a teammate in its own pane runs no loop in this session, so the mod does not know when it ends.
 
-**If you want to show them**, change the filter in the `agent.spawn` hook in `hooks/claudesay.tsx`. It skips a spawn with `parentAgentId`, `workflow` or `isTeammate`. A nested character could stand behind its parent. A workflow agent's `turn.complete` can come from a remote agent with no local loop, so its character may not leave. Use `sweepCrew` for those. For a teammate, keep the character in the `turn.complete` hook while `$.agent.list()` says `idle`. The engine can keep a pane teammate at `running` or `idle` after its pane closes, so the sweep needs another sign that it ended. Not shipped. Contributions are welcome.
+**If you want to show them**, change `isCrewSpawn` and `isCrewAgent` in `hooks/claudesay.tsx`, together. The `agent.spawn` hook uses `isCrewSpawn`, which skips a spawn with `parentAgentId`, `workflow` or `isTeammate`. `syncCrew` uses `isCrewAgent`, which skips an agent with `parentId` or `teammateId`. A nested character could stand behind its parent. A workflow agent's `turn.complete` can come from a remote agent with no local loop, so its character may not leave. The engine does not list workflow agents, so `syncCrew` would send their characters off at the next turn: give them another way to leave. For a teammate, keep the character in the `turn.complete` hook while `$.agent.list()` says `idle`. The engine can keep a pane teammate at `running` or `idle` after its pane closes, so the sweep needs another sign that it ended. Not shipped. Contributions are welcome.
 
 ### Emoji width changes with the font
 
@@ -384,7 +385,7 @@ claudesay is one TypeScript module, `hooks/claudesay.tsx`. Claude Code loads it 
 | Event | What the hook does |
 | --- | --- |
 | `session.start` | Registers the `/claudesay` command. Reads `character.json`. Opens the pane, unless you closed it. Starts the idle time. |
-| `turn.start` | Wakes the character. Clears the last line, and stops a call for a line that has not come. Lets the inline pane get shorter again. Reads `character.json` again, so that a change shows on the next turn. Removes subagents that the engine no longer runs. |
+| `turn.start` | Wakes the character. Clears the last line, and stops a call for a line that has not come. Lets the inline pane get shorter again. Reads `character.json` again, so that a change shows on the next turn. Brings the subagents in line with the ones that the engine runs: one that the mod did not see start comes in, one that it did not see end leaves. |
 | `command.run` `claudesay` | Opens the pane at any width. |
 | `ui.close` | Remembers that you closed the pane, so that later sessions do not open it, and shows a toast that names `/claudesay`. |
 | `agent.spawn` | Adds a character for each subagent that the main loop starts. A resumed subagent keeps the character that it has. The hook does not change or block a spawn. |
@@ -400,7 +401,7 @@ The crew moves on a timer (`$.clock.every`) that runs only while a character mov
 
 The idle time is one `$.clock.after` timer at a time, armed when the work ends. It fires at the **Sleep after** option (`sleepAfter`, by default `SLEEP_AFTER`, two minutes: the character falls asleep) and at the **Rest after** option (`restAfter`, by default `REST_AFTER`, five minutes: the mod saves power). A turn that started meanwhile keeps the character awake. The snore runs on a `$.clock.every` timer of one second, only while the bubble snores. The next bird waits on a `$.clock.after` timer of 15 to 60 seconds (`BIRD_MIN`, `BIRD_MAX`). Only a docked draw schedules one.
 
-If the mod misses the end of a subagent's run, `turn.start` asks the engine which agents run (`sweepCrew`). A character whose agent stopped then leaves. It shows the error face only if the engine says that the agent failed or was killed.
+When the pane opens and at each `turn.start`, the mod asks the engine which agents run (`syncCrew`). A subagent of the main loop that runs but has no character gets one. It skips the same agents as the `agent.spawn` hook (`isCrewAgent`): a nested agent (`parentId`) and a teammate (`teammateId`). The engine does not list workflow agents. It does list a forked skill of the main loop, which has no `agent.spawn`, so that one gets a character too, and leaves at its `turn.complete` or at the next sync. A character whose agent stopped leaves. It shows the error face only if the engine says that the agent failed or was killed.
 
 ### Project structure
 

@@ -1,5 +1,5 @@
 import { atom, read, update } from 'claude-code'
-import type { EngineInterface, Register, Timer } from 'claude-code'
+import type { AgentInfo, AgentSpawnInput, EngineInterface, Register, Timer } from 'claude-code'
 
 import type { ActiveTool, Bird, CharacterOverride, Crewmate, Drop, ToolLook } from '../types'
 import {
@@ -18,7 +18,7 @@ import {
   toolLabel,
   withOverride,
 } from './art.ts'
-import { FAIL_HOLD, type Grid, drawAir, drawCrew, dropTo, isAirborne, stepDrop, gridOf, isSettled, newCrewmate, rowsIn, slotWidth, stepCrew } from './crew.ts'
+import { FAIL_HOLD, type Grid, drawAir, drawCrew, dropTo, isAirborne, stepDrop, gridOf, isSettled, newCrewmate, outOfSight, rowsIn, slotWidth, stepCrew } from './crew.ts'
 import { drawBird, newBird, placeBird, stepBird } from './sky.ts'
 
 const running = atom({ plugin: 'claudesay', key: 'running' } as const, [])
@@ -196,9 +196,9 @@ function askLine($: EngineInterface, answer: string) {
 }
 
 // Changes the crew, then starts the timer if a crewmate has to move.
-async function changeCrew($: EngineInterface, change: (list: Crewmate[]) => Crewmate[]) {
+async function changeCrew($: EngineInterface, change: (list: Crewmate[], slot: number) => Crewmate[]) {
   const slot = slotWidth(await character($))
-  await animate($, await update($, crew, change), slot)
+  await animate($, await update($, crew, list => change(list, slot)), slot)
 }
 
 function stopTicker() {
@@ -396,27 +396,54 @@ function ending(mate: Crewmate, failed: boolean): Crewmate {
 // on a terminal wide enough for a sidebar (UiOpenResult), and it waits for a
 // wider one or for the command. Opened by the command, it shows at any width.
 // With no line to say, the character greets once it landed: the bubble waits
-// until then, and the next turn clears it.
+// until then, and the next turn clears it. The crew drops in with it: the
+// crewmates that work go back out of sight, and subagents that already run come
+// in. A crewmate that leaves keeps its spark or its error face. The first draw
+// starts the timer, on the grid of the new pane.
 const openPane = async ($: EngineInterface, greets: boolean) => {
   arriving = true
   if (greets) await update($, saying, said => said ?? GREETING)
+  await syncCrew($, true).catch(() => {})
   return $.ui.open({ id: PANE, title: 'claudesay', columns: PANE_COLUMNS, rows: PANE_ROWS })
 }
 
+// The label of a crewmate: the few words of its task, or its agent type.
+const labelOf = (description: string, type: string) => cut(clean(description || type), MAX_LABEL)
+
+// The crew follows the engine's list of agents. A subagent of the main loop
+// that runs but is not in the crew comes in: it started before the pane opened,
+// or while the mod was off. The same agents as at agent.spawn (isCrewAgent). A
+// forked skill of the main loop is listed with no agent.spawn, and comes in too.
 // A crewmate whose end the mod did not hear (a lost event, a reload) leaves when
 // the engine no longer lists its agent as one that runs. It shows the error face
 // only when the engine says the agent failed or was killed: an agent that is no
-// longer listed may well have finished.
-async function sweepCrew($: EngineInterface) {
-  const list = await read($, crew)
-  if (list.length === 0) return
+// longer listed may well have finished. With arrive, the crew drops in again for
+// a pane that opens, and the crew changes without starting the timer.
+async function syncCrew($: EngineInterface, arrive = false) {
   const agents = await $.agent.list()
   const status = new Map(agents.map(agent => [agent.id, agent.status]))
   const gone = (id: string) => !status.has(id) || ENDED.has(status.get(id) ?? '')
   const failed = (id: string) => status.get(id) === 'failed' || status.get(id) === 'killed'
-  if (!list.some(mate => mate.phase === 'work' && gone(mate.id))) return
-  await changeCrew($, all => all.map(mate => (gone(mate.id) ? ending(mate, failed(mate.id)) : mate)))
+  const runs = agents.filter(agent => isCrewAgent(agent) && agent.status !== 'idle' && !ENDED.has(agent.status))
+  // A check only: the change below compares with the crew as it is then, which
+  // a spawn may have changed meanwhile.
+  const list = await read($, crew)
+  const joins = runs.some(agent => !list.some(mate => mate.id === agent.id))
+  if (!arrive && !joins && !list.some(mate => mate.phase === 'work' && gone(mate.id))) return
+  const sync = (list: Crewmate[], slot: number) => [
+    ...list.map(mate => (gone(mate.id) ? ending(mate, failed(mate.id)) : arrive && mate.phase === 'work' ? outOfSight(mate, slot) : mate)),
+    ...runs.filter(agent => !list.some(mate => mate.id === agent.id)).map(agent => newCrewmate(agent.id, labelOf(agent.description, agent.type), slot)),
+  ]
+  if (!arrive) return changeCrew($, sync)
+  const slot = slotWidth(await character($))
+  await update($, crew, list => sync(list, slot))
 }
+
+// A subagent of the main loop: no nested agent, no teammate, and no workflow's
+// agent, which the list never names. The spawn and the list name these fields
+// apart, so each has its own test: change both together.
+const isCrewSpawn = (e: AgentSpawnInput) => e.parentAgentId === undefined && e.workflow === undefined && e.isTeammate !== true
+const isCrewAgent = (agent: AgentInfo) => agent.parentId === undefined && agent.teammateId === undefined
 
 export const register: Register = (on, options) => {
   // A change in the config menu loads the module again with the new mode.
@@ -456,8 +483,9 @@ export const register: Register = (on, options) => {
   // A new turn of the main loop clears the last line, because it is about the
   // reply above, or stops the call that would write it, and lets the pane
   // shrink again. The hook also reads character.json again, so an edit shows
-  // on the next turn, and sends off a crewmate whose agent ended without the
-  // mod hearing it. A subagent's turn changes nothing here.
+  // on the next turn, and brings the crew in line with the agents that run:
+  // one the mod did not hear start comes in, one it did not hear end leaves.
+  // A subagent's turn changes nothing here.
   on('turn.start', async ($, e, next) => {
     const result = await next(e)
     if (e.agentId !== undefined) return result
@@ -467,7 +495,7 @@ export const register: Register = (on, options) => {
     await update($, working, () => true)
     await update($, saying, () => null)
     await reloadCharacter($)
-    await sweepCrew($).catch(() => {})
+    await syncCrew($).catch(() => {})
     return result
   })
 
@@ -508,17 +536,16 @@ export const register: Register = (on, options) => {
   // goes idle between turns, and one in its own pane runs no loop here, so the
   // mod would never hear its end. An agent that goes on after it waited on its
   // own background work comes back as a resumed spawn: its crewmate stays where
-  // it stands. The hook only observes: it passes every spawn on unchanged.
+  // it stands. So does one that the list brought in while the spawn ran. The
+  // hook only observes: it passes every spawn on unchanged.
   on('agent.spawn', async ($, e, next) => {
     const result = await next(e)
-    if (e.parentAgentId !== undefined || e.workflow !== undefined || e.isTeammate === true || result.agentId === undefined) {
-      return result
-    }
+    if (!isCrewSpawn(e) || result.agentId === undefined) return result
     const id = result.agentId
-    if (e.resume !== undefined && (await read($, crew)).some(mate => mate.id === id && mate.phase === 'work')) return result
-    const label = cut(clean(e.description || e.subagentType), MAX_LABEL)
-    const slot = slotWidth(await character($))
-    await changeCrew($, list => [...list.filter(mate => mate.id !== id), newCrewmate(id, label, slot)])
+    const label = labelOf(e.description, e.subagentType)
+    await changeCrew($, (list, slot) =>
+      list.some(mate => mate.id === id && mate.phase === 'work') ? list : [...list.filter(mate => mate.id !== id), newCrewmate(id, label, slot)],
+    )
     return result
   }).catch(($, e, next) => next(e))
 

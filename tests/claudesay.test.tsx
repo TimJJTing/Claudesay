@@ -408,6 +408,45 @@ test('a spawned agent drops into the pane, holds its tool and leaves when done',
   expect(await paneText($)).not.toContain('Explore repo')
 })
 
+test('subagents that already run when the pane opens drop in with the character, and only those', async ($, on) => {
+  engine(on)
+  const clock = mock.clock(on)
+  on('agent.list', () => ({
+    value: [
+      { id: 'a1', description: 'Explore repo', type: 'general-purpose', status: 'running' as const },
+      { id: 'a2', description: '', type: 'Plan', status: 'waiting' as const },
+      { id: 'n1', description: 'Nested', type: 'general-purpose', status: 'running' as const, parentId: 'a1' },
+      { id: 't1', description: 'Teammate', type: 'teammate', status: 'running' as const, teammateId: 'bob@team' },
+      { id: 'd1', description: 'Done', type: 'general-purpose', status: 'completed' as const },
+    ],
+  }))
+  await $.session.start(SESSION)
+  await paneText($)
+  await clock.advance(5000)
+  const text = await paneText($)
+  expect(text).toContain('Explore repo')
+  expect(text).toContain('Plan')
+  for (const label of ['Nested', 'Teammate', 'Done']) expect(text).not.toContain(label)
+
+  // The agent ends: its crewmate leaves as one that the mod saw spawn.
+  await $.turn.complete({ turnId: 's1', answer: 'Found it.', durationMs: 1, isAborted: false, reason: 'answer', agentId: 'a1' })
+  await clock.advance(5000)
+  expect(await paneText($)).not.toContain('Explore repo')
+})
+
+test('a subagent that the mod did not hear start comes in at the next turn', async ($, on) => {
+  engine(on)
+  const clock = mock.clock(on)
+  const running = new Set<string>()
+  agents(on, running)
+  await $.session.start(SESSION)
+  await clock.advance(5000)
+  running.add('missed')
+  await $.turn.start({ text: 'go', turnId: 't1' })
+  await clock.advance(5000)
+  expect(await paneText($)).toContain('general-purpose')
+})
+
 test('an agent that waits on its background work stays, and its resumed run does not drop it in again', async ($, on) => {
   engine(on)
   const clock = mock.clock(on)
@@ -627,6 +666,81 @@ test('the main character drops into a pane that just opened, and again when the 
   expect(await paneText($, dock)).toContain('°_°')
   await clock.advance(5000)
   expect(face(await paneText($, dock))).toBe(true)
+})
+
+test('the crew drops in again with the character when the command opens the pane', async ($, on) => {
+  engine(on)
+  const clock = mock.clock(on)
+  agents(on, new Set())
+  await $.session.start(SESSION)
+  await $.agent.spawn(spawn('Explore repo'))
+  await clock.advance(5000)
+  expect(await paneText($)).toContain('Explore repo')
+
+  await $.command.run(OPEN)
+  expect(await paneText($)).not.toContain('Explore repo')
+  await clock.advance(5000)
+  expect(await paneText($)).toContain('Explore repo')
+})
+
+test('a crewmate that failed keeps its error face when the command opens the pane', async ($, on) => {
+  engine(on)
+  const clock = mock.clock(on)
+  agents(on, new Set())
+  await $.session.start(SESSION)
+  await paneText($)
+  const { agentId } = await $.agent.spawn(spawn('Run the tests'))
+  await clock.advance(5000)
+  await $.turn.complete({ turnId: 's1', answer: '', durationMs: 1, isAborted: true, reason: 'aborted', agentId })
+  await clock.advance(120)
+  expect(await paneText($)).toContain('x_x')
+
+  await $.command.run(OPEN)
+  await paneText($)
+  await clock.advance(120)
+  expect(await paneText($)).toContain('x_x')
+})
+
+test('subagents that run before the pane is placed drop in once it draws', async ($, on) => {
+  engine(on, [], {}, 'too narrow')
+  const clock = mock.clock(on)
+  on('agent.list', () => ({ value: [{ id: 'a1', description: 'Explore repo', type: 'general-purpose', status: 'running' as const }] }))
+  await $.session.start(SESSION)
+  await clock.advance(5000)
+  expect(await paneText($)).not.toContain('Explore repo')
+  await clock.advance(5000)
+  expect(await paneText($)).toContain('Explore repo')
+})
+
+test('a crewmate that the list brought in does not drop in again at its spawn', async ($, on) => {
+  engine(on)
+  const clock = mock.clock(on)
+  const running = new Set<string>()
+  on('agent.list', () => ({ value: [...running].map(id => ({ id, description: 'Slow start', type: 'general-purpose', status: 'running' as const })) }))
+  on('agent.spawn', async () => {
+    running.add('late')
+    await $.turn.start({ text: 'go', turnId: 't9' })
+    await clock.advance(5000)
+    return { agentId: 'late', model: 'm' }
+  })
+  await $.session.start(SESSION)
+  await paneText($)
+  await $.agent.spawn(spawn('Slow start'))
+  await clock.advance(120)
+  // Both heads show: nobody is in the air.
+  expect((await paneText($)).match(/\/\\__\/\\/g)).toHaveLength(2)
+})
+
+test('one agent never gets two crewmates', async ($, on) => {
+  engine(on)
+  const clock = mock.clock(on)
+  agents(on, new Set())
+  await $.session.start(SESSION)
+  await paneText($)
+  await Promise.all([$.turn.start({ text: 'go', turnId: 't1' }), $.agent.spawn(spawn('general-purpose'))])
+  await clock.advance(5000)
+  const text = await paneText($, PANE('dock', 120, 20))
+  expect(text.split('general-purpose').length - 1).toBe(1)
 })
 
 test('the bubble waits until the main character landed', async ($, on) => {

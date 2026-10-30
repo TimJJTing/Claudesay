@@ -116,6 +116,9 @@ export function newCrewmate(id: string, label: string, slot: number): Crewmate {
   return { id, label, look: null, toolId: null, x: -slot, y: 0, plane: null, spark: 0, phase: 'work', hold: 0 }
 }
 
+// A crewmate sent back out of sight, so it drops in again, as in a pane that opens.
+export const outOfSight = (mate: Crewmate, slot: number): Crewmate => ({ ...mate, x: -slot, y: 0, plane: null })
+
 // One tick: each crewmate moves a step to its slot. A crewmate that leaves
 // turns into a spark and is gone when the spark is out. A crewmate that ended
 // out of sight, or still in its plane, is gone at once.
