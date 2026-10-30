@@ -30,10 +30,6 @@ These are the limits:
 
 The mod removes control characters from all lines before it draws them.
 
-Subagents use the same character. Each subagent takes a slot of `2 × sideWidth + centerWidth + 2` columns. With the default character, a slot is 20 columns. A row of the pane holds as many slots as its width allows, so a pane narrower than 38 columns puts each subagent in a row of its own below the main character. A wider or taller character gives fewer slots. When the pane has no room for a second slot, it shows only a count of the subagents. The parachute follows `centerWidth`. The plane has a fixed width. Refer to [Subagents](README.md#subagents).
-
-The first line of the default `top` cell is empty. This empty row keeps a row of subagents apart from the labels of the row above. If your `top` cell has no empty first line, add one to keep this space.
-
 ## Example
 
 This file changes the focused face, gives the character a hat in one more top row and changes the prop for Bash:
@@ -87,6 +83,14 @@ The mod removes empty rows at the bottom of the character.
 
 The tail of the bubble points to column `sideWidth + centerWidth / 2`.
 
+## Subagents
+
+Subagents use the same character. Each subagent takes a slot of `2 × sideWidth + centerWidth + 2` columns. With the default character, a slot is 20 columns. A row of the pane holds as many slots as its width allows, so a pane narrower than 38 columns puts each subagent in a row of its own below the main character. A wider or taller character gives fewer slots. When the pane has no room for a second slot, it shows only a count of the subagents. Refer to [Subagents](README.md#subagents).
+
+The first line of the default `top` cell is empty. This empty row keeps a row of subagents apart from the labels of the row above. If your `top` cell has no empty first line, add one to keep this space.
+
+The parachute follows `centerWidth`. The plane, the spark and the bird have fixed art. You cannot change them in `character.json`.
+
 ## Faces
 
 A face is one line. Make it `centerWidth` columns wide. The parentheses are part of the face.
@@ -101,6 +105,7 @@ Give one face as a string. Give two or more faces as a list. When a mood has a l
 | `focused` | `"( -.-  )"` | Work, or a command that runs. |
 | `upset` | `"( >_<  )"` | A warning, or a partial failure. The main character also shows it while a subagent shows the error face. |
 | `error` | `"( x_x  )"` | A failure. A subagent shows it when its run fails. |
+| `sleeping` | `"( ɛ_ɛ  )"` | The main character after the idle time of **Sleep after** (two minutes by default). Haiku never picks it for a line. |
 
 ```json
 {
@@ -149,7 +154,7 @@ Each tool has a look with three fields:
 | Field | Values | Function |
 | --- | --- | --- |
 | `prop` | A symbol, or `null` | The item in the hand of the character. `null` means no item. |
-| `mood` | `happy`, `excited`, `thinking`, `focused`, `upset`, `error` | The face of the character. |
+| `mood` | `happy`, `excited`, `thinking`, `focused`, `upset`, `error`, `sleeping` | The face of the character. |
 | `side` | `left`, `right`, or `null` | The hand that holds the prop. |
 
 Use the tool name as the key. You can give a part of a look. The mod keeps the default value of each field that you do not give.

@@ -1,7 +1,9 @@
 // Pure drawing code: no `$`, no state. The hooks module and the tests import it.
 import type { ActiveTool, CellName, CharacterOverride, Mood, Saying, Side, ToolLook } from '../types'
 
-const MOODS: readonly Mood[] = ['happy', 'excited', 'thinking', 'focused', 'upset', 'error']
+const MOODS: readonly Mood[] = ['happy', 'excited', 'thinking', 'focused', 'upset', 'error', 'sleeping']
+// The moods the small model may pick for a line. Only the idle character sleeps.
+const SAID_MOODS: readonly Mood[] = MOODS.filter(mood => mood !== 'sleeping')
 
 // Grid layout (18 cols × 9 rows with the default sizes):
 //
@@ -50,6 +52,7 @@ export const DEFAULT_CHARACTER: Character = {
     focused: ['( -.-  )'],
     upset: ['( >_<  )'],
     error: ['( x_x  )'],
+    sleeping: ['( ɛ_ɛ  )'],
   },
   cells: {
     topLeft: [],
@@ -444,17 +447,28 @@ export function drawBubble(character: Character, message: string, width = BUBBLE
   ]
 }
 
-// What the main character shows, in this order: the newest tool that runs, with
-// its prop; a thinking face while Claude works; the line about the last reply;
-// an idle face. `text` is the line for the bubble, if any. It looks upset in
-// place of thinking or idle while a crewmate stands with the error face.
+// The frames of the snore in the bubble of the sleeping character, one a
+// second. The last one also stays in the bubble once the mod stops animating
+// to save power.
+export const SNORES = ['z', 'z Z', 'z Z z…'] as const
+
+// What the main character shows, in this order: the sleeping face once it
+// dozed off; the newest tool that runs, with its prop; a thinking face while
+// Claude works; the line about the last reply; an idle face. `text` is the line
+// for the bubble, if any. It looks upset in place of thinking or idle while a
+// crewmate stands with the error face. `sleep` is the snore of a sleeping
+// character, and null while it is awake. It sleeps only when Claude is idle or
+// waits on the person, so the bubble keeps the label of the tool that waits, or
+// the line, and snores when it has neither.
 export function poseFor(
   character: Character,
   tool: ActiveTool | undefined,
   said: Saying | null,
   working: boolean,
   upset: boolean,
+  sleep: string | null = null,
 ): { text: string | null; body: string[] } {
+  if (sleep !== null) return { text: tool?.label ?? said?.line ?? sleep, body: drawCharacter(character, 'sleeping', 'asleep') }
   if (tool !== undefined) {
     const { mood, prop, side } = tool.look
     return { text: tool.label, body: drawCharacter(character, mood, tool.label, prop, side) }
@@ -579,6 +593,6 @@ export function parseSaid(text: string, answer: string): Saying | null {
   if (said === null) return null
   const mood = said[1]!.toLowerCase() as Mood
   const line = said[2]!.replace(/^["'“]|["'”]$/g, '').trim()
-  if (!MOODS.includes(mood) || line === '' || line.length > MAX_SAID || !isGrounded(line, answer)) return null
+  if (!SAID_MOODS.includes(mood) || line === '' || line.length > MAX_SAID || !isGrounded(line, answer)) return null
   return { mood, line }
 }

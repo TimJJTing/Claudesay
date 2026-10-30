@@ -111,9 +111,11 @@ describe('the line check', () => {
   })
 })
 
+// A tool call that runs, and a line about the last reply, for poseFor.
+const tool = { id: 't1', tool: 'Read', label: 'Read → art.ts', look: { prop: '🔍', mood: 'focused' as const, side: 'left' as const } }
+const said = { mood: 'excited' as const, line: 'All done.' }
+
 describe('poseFor', () => {
-  const tool = { id: 't1', label: 'Read → art.ts', look: { prop: '🔍', mood: 'focused' as const, side: 'left' as const } }
-  const said = { mood: 'excited' as const, line: 'All done.' }
   const face = (body: string[]) => body[2]
 
   test('a tool comes first, then work, then the line, then the idle face', async () => {
@@ -131,6 +133,31 @@ describe('poseFor', () => {
     expect(face(poseFor(DEFAULT_CHARACTER, undefined, null, false, true).body)).toBe(upset)
     expect(face(poseFor(DEFAULT_CHARACTER, undefined, said, false, true).body)).not.toBe(upset)
     expect(face(poseFor(DEFAULT_CHARACTER, tool, null, false, true).body)).not.toBe(upset)
+  })
+})
+
+describe('sleep', () => {
+  const asleep = drawCharacter(DEFAULT_CHARACTER, 'sleeping', 'asleep')
+
+  test('the sleeping character closes its eyes', async () => {
+    expect(asleep[2]).toContain('( ɛ_ɛ  )')
+  })
+
+  test('asleep, the bubble keeps the line, and snores when there is none', async () => {
+    expect(poseFor(DEFAULT_CHARACTER, undefined, said, false, false, 'z Z')).toEqual({ text: 'All done.', body: asleep })
+    expect(poseFor(DEFAULT_CHARACTER, undefined, null, false, false, 'z Z')).toEqual({ text: 'z Z', body: asleep })
+  })
+
+  test('sleep comes before work: the bubble keeps the label of a tool that waits on the person, or snores', async () => {
+    expect(poseFor(DEFAULT_CHARACTER, tool, said, true, false, 'z')).toEqual({ text: 'Read → art.ts', body: asleep })
+    expect(poseFor(DEFAULT_CHARACTER, undefined, null, true, false, 'z')).toEqual({ text: 'z', body: asleep })
+  })
+
+  test('the small model cannot pick the sleeping mood, but character.json can change its face', async () => {
+    expect(parseSaid('sleeping I fixed the test.', 'I fixed the test.')).toBeNull()
+    const { override, problems } = sanitizeOverride({ faces: { sleeping: '( u_u  )' } })
+    expect(problems).toEqual([])
+    expect(drawCharacter(withOverride(DEFAULT_CHARACTER, override), 'sleeping', 'asleep')[2]).toContain('( u_u  )')
   })
 })
 

@@ -163,7 +163,7 @@ function moodOf(mate: Crewmate, moving: boolean): Mood {
 // Splits a line into terminal cells. A wide character takes two: the
 // character, then an empty string. Joined emoji, flags, variation selectors
 // and skin tones stay in one cell, as cellWidth counts them.
-function toCells(line: string): string[] {
+export function toCells(line: string): string[] {
   const clusters: string[] = []
   let afterJoiner = false
   let openFlag = false

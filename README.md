@@ -112,6 +112,13 @@ claudesay is on after the installation. To change the mode, do these steps:
 
 The mod loads again immediately with the new mode. You do not have to restart the session.
 
+The same menu has two rows for the idle times. Each takes a value from `30s` to `10m`, in steps of 30 seconds. Refer to [Sleep](#sleep).
+
+| Row | Default | Result |
+| --- | --- | --- |
+| **Sleep after** | `2m` | The idle time after which the character falls asleep. |
+| **Rest after** | `5m` | The idle time after which the mod saves power. A value under **Sleep after** counts as **Sleep after**. |
+
 ### The pane
 
 The mod opens its pane at the start of each session. Claude Code puts the pane in one of two places:
@@ -125,17 +132,30 @@ The mod opens its pane at the start of each session. Claude Code puts the pane i
 - **When it opens.** The character parachutes in. Its bubble shows when it has landed. In the `on` mode, with no line to say yet, it greets you: "Hi! I'll sum up each reply here." The next turn clears the greeting.
 - **Close it.** Click its close mark or press ctrl+x x. Later sessions do not open it, and a toast reminds you: type `/claudesay` to open it again. While the pane is closed, the mod makes no model calls.
 - **Size.** The drawing follows the size of the pane. A wide pane puts the subagents beside the main character. A narrow pane puts them below it. The text in the bubble wraps at 45 columns, or less in a narrow pane. If the line does not fit in the height of the pane, the bubble ends in "…". The reply holds the whole line.
-- **Height.** Inline, the pane keeps its height until the turn ends, so the prompt does not move when a bubble comes and goes.
+- **Height.** Inline, the pane does not get shorter until the next turn starts, so the prompt does not move when a bubble comes and goes.
 - **Other panes.** When another mod also opens a pane, Claude Code shows the panes as tabs. Click a tab, or press ctrl+x tab, to change the pane that shows.
 
 ## What the character shows
 
 The main character shows one of these, in this order:
 
-1. The newest tool that runs now, with its prop.
-2. A thinking face, while Claude works and no tool runs, and until the line about the reply comes.
-3. The line about the last reply.
-4. A happy face.
+1. The sleeping face `( ɛ_ɛ  )`, when the session is idle. Refer to [Sleep](#sleep).
+2. The newest tool that runs now, with its prop.
+3. A thinking face, while Claude works and no tool runs, and until the line about the reply comes.
+4. The line about the last reply.
+5. A happy face.
+
+### Sleep
+
+After the **Sleep after** time with nothing to do (two minutes by default), the character falls asleep and shows the sleeping face `( ɛ_ɛ  )`. Idle means that no turn runs and no subagent works, or that the main loop waits on you: a question (`AskUserQuestion`), a plan to approve (`ExitPlanMode`) or a permission dialog. The idle time counts from the end of the turn, or from the moment that Claude started to wait on you.
+
+- **The bubble.** A sleeping character keeps what the bubble says: the line about the last reply, or the label of the tool that waits on you. When the bubble has nothing to say, for example after a turn that ended without an answer, it snores: `z`, `z Z`, `z Z z…`, one frame a second.
+- **Wake up.** A new turn, typing in the prompt box, and your answer to a question or a plan wake the character. Then the idle time starts again. After a permission dialog, the character wakes only when the tool finishes. Refer to [Known limitations](#after-you-approve-a-permission-dialog-the-character-sleeps-on-until-the-tool-finishes).
+- **Save power.** After the **Rest after** time (five minutes by default), the snore stops on `z Z z…`, and no new bird comes. A bird in the air flies on out of the pane. Then the mod runs no timer until the character wakes.
+
+### Birds
+
+Now and then, a bird (`\v/`, wings up, and `-v-`, wings level) flies across the docked pane, from the left or the right edge, at a random height. It sets off in a row that holds nothing, and keeps that row. It flies behind everything: a character, a label, the bubble or the plane that comes into its row covers it. It never shows inside the bubble. A bird comes 15 to 60 seconds after the last one, while the character is awake or asleep, until the mod saves power. The inline pane has no birds.
 
 ### Subagents
 
@@ -189,11 +209,17 @@ The mod does not ask for a line in the `tools` mode, after a subagent's run, aft
 
 ### The history stays complete
 
-The bubble shows only the newest line, so the reply must hold all of the information. The line comes from the reply, and the mod changes neither the reply nor the stored messages. The mod also examines the line before it shows it. The line can have a link, a domain name, a path, a code span or a command word (for example `curl` or `sudo`) that the reply does not have as a whole word. Then the pane does not show it. The same applies to a line that asks for consent, for example `[y/N]` or "type y", if the reply does not ask for it, and to a line of more than 300 characters.
+The bubble shows only the newest line, so the reply must hold all of the information. The line comes from the reply. The mod changes neither the reply nor the stored messages.
 
-The check works for all scripts. Before the comparison, the mod changes fullwidth letters and digits to plain ones, removes invisible characters, and changes ideographic dots (`。`) to `.`. An ideographic dot next to Chinese, Japanese or Korean text, or before a capital letter, ends a sentence, so it stays: `完成了。中文` and `vitest。Tests` are not domain names, but `evil。com` is. It compares whole tokens, so `rm` does not match "format", and `evil.com` does not match "evil.com.example.org".
+The mod checks each line before the pane shows it. The pane does not show a line that:
+
+- has a link, a domain name, a path, a code span or a command word (for example `curl` or `sudo`) that the reply does not have as a whole word.
+- asks for consent, for example `[y/N]` or "type y", when the reply does not ask for it.
+- has more than 300 characters.
 
 The bubble never asks for permission. Claude Code shows all permission prompts itself.
+
+The check works for all scripts. Before the comparison, the mod changes fullwidth letters, digits and dots to plain ones, removes invisible characters, and changes ideographic dots (`。`) to `.`. An ideographic dot next to Chinese, Japanese or Korean text, or before a capital letter, ends a sentence, so it stays: `完成了。中文` and `vitest。Tests` are not domain names, but `evil。com` is. It compares whole tokens, so `rm` does not match "format", and `evil.com` does not match "evil.com.example.org".
 
 The tool label in the bubble passes a check too: a path that reads like a consent prompt shows as the tool name only, and a path of more than 50 characters ends in "…".
 
@@ -215,13 +241,9 @@ In the `tools` mode and in the `off` mode, claudesay uses no tokens.
 
 Only in the `on` mode: the call to Haiku sends the final answer to the API, through the same client, credentials and provider as your session. The mod sends nothing to any other place. All drawing occurs in the mod.
 
-### Does the transcript change?
+### Does the transcript or the context change?
 
-No. The mod adds no text to the replies, and the stored messages do not change. The pane shows only the newest line. To read an earlier reply, scroll back to the reply.
-
-### Does the ASCII art go into the context?
-
-No. Claude does not see the art or the line.
+No. The mod adds no text to the replies, and the stored messages do not change. Claude does not see the art or the line. The pane shows only the newest line. To read an earlier reply, scroll back to it.
 
 ### Why is there no bubble after a reply?
 
@@ -247,79 +269,111 @@ Buddy was a virtual pet in earlier versions of Claude Code. You hatched it and y
 
 ## Known limitations
 
-- **The pane shows only the newest line.** There is no history of bubbles.
+Each limitation says what the limit is, why we stop there, and where to start if you want to change it.
 
-  **Why we stop here:** A bubble under each reply makes the transcript longer, and the replies already hold all the information. One character keeps the screen clean.
+### The pane shows only the newest line
 
-  **If you want a bubble under each reply**, keep the line of each reply in the `turn.complete` hook, and draw it in the `ui.render` hook on `AssistantMessage`. Version 2 did this. Not shipped. Contributions are welcome.
+There is no history of bubbles.
 
-- **Each reply costs one small model call.** The line is not free, and it comes approximately one second after the reply. A provider that does not allow Haiku gives no bubble.
+**Why we stop here:** A bubble under each reply makes the transcript longer, and the replies already hold all the information. One character keeps the screen clean.
 
-  **Why we stop here:** The other way is to let Claude write the line itself, in a tag at the end of each reply. A tag costs no call, but its instructions add tokens to each request, the tag stays in the stored messages, so exports and other screens show it raw, and Claude does not always write it. One small call has none of these problems.
+**If you want a bubble under each reply**, keep the line of each reply in the `turn.complete` hook, and draw it in the `ui.render` hook on `AssistantMessage`. Version 2 did this. Not shipped. Contributions are welcome.
 
-  **If you want another model**, change `SAY_MODEL` in `hooks/claudesay.tsx`. To change what the line says, change `SAY_SYSTEM` in `hooks/art.ts`. Contributions are welcome.
+### Each reply costs one small model call
 
-- **The line check does not examine the meaning.** The check stops links, paths, commands and consent prompts that only the line has. It does not check numbers. It does not stop a line that says "All tests pass" when the reply says that the tests are not done. A reply can quote a web page with instructions, and Haiku can obey them in the line. The check also reads the reply as Markdown source: a link target that the screen does not show, for example in `[docs](https://example.com)`, counts as part of the reply.
+The line is not free, and it comes approximately one second after the reply. A provider that does not allow Haiku gives no bubble.
 
-  **Why we stop here:** A check of the meaning of a sentence needs another model, and that model can also be wrong. A number only in the line is a detail, not something to act on, and a check of numbers stopped good lines, for example "55 seconds" for "Sleep 55s", or a number next to Chinese, Japanese or Korean text.
+**Why we stop here:** The other way is to let Claude write the line itself, in a tag at the end of each reply. A tag costs no call, but its instructions add tokens to each request, the tag stays in the stored messages, so exports and other screens show it raw, and Claude does not always write it. One small call has none of these problems.
 
-  **What to do:** Do not act on the bubble alone. Read the reply.
+**If you want another model**, change `SAY_MODEL` in `hooks/claudesay.tsx`. To change what the line says, change `SAY_SYSTEM` in `hooks/art.ts`. Contributions are welcome.
 
-  **If you want to check numbers**, add a pattern to `CHECKED` in `hooks/art.ts`. A number joins the letters next to it in many forms ("55s", "v3", "3개"), so compare its digits only. Not shipped. Contributions are welcome.
+### The line check does not examine the meaning
 
-  **If you want a stronger check**, extend `isGrounded` in `hooks/art.ts`. Contributions are welcome.
+The check stops links, paths, commands and consent prompts that only the line has. It does not check numbers. It does not stop a line that says "All tests pass" when the reply says that the tests are not done. A reply can quote a web page with instructions, and Haiku can obey them in the line. The check also reads the reply as Markdown source: a link target that the screen does not show, for example in `[docs](https://example.com)`, counts as part of the reply.
 
-- **The line check does not see a domain name that starts or ends with Chinese, Japanese or Korean text and uses an ideographic dot.** For example, `例子。com`, `evil。中国` and `evil。Com` pass. With a plain dot, `例子.com` is still stopped. The other way, a sentence that ends in an English word and a next one that starts with a lowercase English word, for example `跑了 vitest。tests 都過了`, still reads as a domain name, and the pane shows no bubble for that line.
+**Why we stop here:** A check of the meaning of a sentence needs another model, and that model can also be wrong. A number only in the line is a detail, not something to act on, and a check of numbers stopped good lines, for example "55 seconds" for "Sleep 55s", or a number next to Chinese, Japanese or Korean text.
 
-  **Why we stop here:** In Chinese, Japanese and Korean text, `。` ends a sentence, and the next sentence starts with no space. When each `。` counted as a dot, a line with two sentences, for example `都結束了。中文標籤都清楚。`, read as a domain name, and the pane showed no bubble after many replies. A sentence in English starts with a capital, so a capital after `。` marks a new sentence too. A domain name with an ideographic dot next to CJK text or before a capital is rare, and a browser link uses a plain dot. The idea to treat CJK punctuation as a word boundary comes from Claude Code's built-in you-should-know plugin (`cc-plugin-you-should-know`). The set of invisible characters that the mod removes comes from that plugin too.
+**What to do:** Do not act on the bubble alone. Read the reply.
 
-  **If you want to stop these names**, change `IDEOGRAPHIC_DOT` in `hooks/art.ts`. For example, change a `。` between CJK text and a known top-level domain (`com`, `net`, `中国`). Add tests with Chinese, Japanese and Korean lines of two sentences to `tests/art.test.ts`, so good lines still show. Not shipped. Contributions are welcome.
+**If you want to check numbers**, add a pattern to `CHECKED` in `hooks/art.ts`. A number joins the letters next to it in many forms ("55s", "v3", "3개"), so compare its digits only. Not shipped. Contributions are welcome.
 
-- **The pane takes room.** Docked, it makes the transcript narrower. It asks for 50 columns, and Claude Code gives it at most 45% of the terminal. Inline, it asks for 19 rows. It stays open when the character has nothing to say, and during a turn it keeps its tallest height.
+**If you want a stronger check**, extend `isGrounded` in `hooks/art.ts`. Contributions are welcome.
 
-  **Why we stop here:** A pane that opens and closes at each turn moves the transcript or the prompt. A stable screen is easier to read and to type in.
+### The line check misses some domain names with an ideographic dot
 
-  **If you want a smaller pane**, drag the edge of the docked pane, or give a smaller character in `character.json`. Refer to [CHARACTER_CUSTOMIZATION.md](CHARACTER_CUSTOMIZATION.md). To let the inline pane get shorter during a turn, change how the `Pane` hook in `hooks/claudesay.tsx` uses `tallest`. A compact mode with the face only is not shipped. Contributions are welcome.
+The check does not see a domain name that starts or ends with Chinese, Japanese or Korean text and uses an ideographic dot (`。`). For example, `例子。com`, `evil。中国` and `evil。Com` pass. With a plain dot, `例子.com` is still stopped. The other way, a sentence that ends in an English word and a next one that starts with a lowercase English word, for example `跑了 vitest。tests 都過了`, still reads as a domain name, and the pane shows no bubble for that line.
 
-- **The pane does not open by itself on a narrow terminal.** Claude Code shows a pane that a mod opens by itself only from 144 columns, or from 110 columns after you opened it one time.
+**Why we stop here:** In Chinese, Japanese and Korean text, `。` ends a sentence, and the next sentence starts with no space. When each `。` counted as a dot, a line with two sentences, for example `都結束了。中文標籤都清楚。`, read as a domain name, and the pane showed no bubble after many replies. A sentence in English starts with a capital, so a capital after `。` marks a new sentence too. A domain name with an ideographic dot next to CJK text or before a capital is rare, and a browser link uses a plain dot. The idea to treat CJK punctuation as a word boundary comes from Claude Code's built-in you-should-know plugin (`cc-plugin-you-should-know`). The set of invisible characters that the mod removes comes from that plugin too.
 
-  **Why we stop here:** Claude Code sets this limit, so that a mod does not fill a narrow screen. The mod draws only in a pane: a pane can dock beside the transcript, has room for the crew, follows its own size and shares the screen with other panes as tabs. The band above the prompt, where earlier versions drew, has no width limit, but it holds less. The mod also does not open the pane when you send a prompt. Claude Code shows such a pane at any width, so that would get around the limit.
+**If you want to stop these names**, change `IDEOGRAPHIC_DOT` in `hooks/art.ts`. For example, change a `。` between CJK text and a known top-level domain (`com`, `net`, `中国`). Add tests with Chinese, Japanese and Korean lines of two sentences to `tests/art.test.ts`, so good lines still show. Not shipped. Contributions are welcome.
 
-  **What to do:** Type `/claudesay`. A pane that you open shows at any width.
+### The pane takes room
 
-  **If you want a character on a narrow terminal without the command**, draw a small one in the `ui.render` hook on `AbovePrompt` while `$.ui.panes()` says the pane is not placed. Not shipped. Contributions are welcome.
+Docked, it makes the transcript narrower. It asks for 50 columns, and Claude Code gives it at most 45% of the terminal. Inline, it asks for 19 rows, and it does not get shorter until the next turn starts. It stays open when the character has nothing to say.
 
-- **The drawing expects one screen at a time.** A session can draw on more than one screen. For example, the Desktop app can connect to a session that runs in your terminal. The mod keeps one layout of the pane: the slots, the positions of the characters and the height of the inline pane. When two screens of different sizes draw the pane at once, the characters move toward the slots of the screen that drew last, and can jump between the two. The bubble, the tool label and the faces stay correct on each screen.
+**Why we stop here:** A pane that opens and closes at each turn moves the transcript or the prompt. A stable screen is easier to read and to type in.
 
-  **Why we stop here:** Most sessions draw on one screen. The fault is in the layout only, and it ends when one screen goes away. A fix keeps a layout for each screen, and the timer then moves each of them. That doubles the state of the animation, for a case that is rare and hard to test.
+**If you want a smaller pane**, drag the edge of the docked pane, or give a smaller character in `character.json`. Refer to [CHARACTER_CUSTOMIZATION.md](CHARACTER_CUSTOMIZATION.md). To let the inline pane get shorter during a turn, change how the `ui.render` hook on `Pane` in `hooks/claudesay.tsx` uses `tallest`. A compact mode with the face only is not shipped. Contributions are welcome.
 
-  **If a second screen comes**, keep the slot of each character and how far it has moved in `hooks/crew.ts`, not its column and row. Then each screen works out the positions from its own `Grid` in the `Pane` hook. `e.surface` names the screen. Not shipped. Contributions are welcome.
+### The pane does not open by itself on a narrow terminal
 
-- **The pane shows one tool.** When Claude runs tools in parallel, the pane shows the newest tool that still runs. This applies to each subagent character too.
+Claude Code shows a pane that a mod opens by itself only from 144 columns, or from 110 columns after you opened it one time.
 
-  **Why we stop here:** A character has two hands and one bubble. More tools do not fit.
+**Why we stop here:** Claude Code sets this limit, so that a mod does not fill a narrow screen. The mod draws only in a pane: a pane can dock beside the transcript, has room for the crew, follows its own size and shares the screen with other panes as tabs. The band above the prompt, where earlier versions drew, has no width limit, but it holds less. The mod also does not open the pane when you send a prompt. Claude Code shows such a pane at any width, so that would get around the limit.
 
-  **If you want to show more tools**, the `running` list in `hooks/claudesay.tsx` already holds all the tools that run now. Draw a count of the others in the bubble, for example `Edit → /repo/README.md (+2)`. A subagent character keeps only its newest tool, in the `look` and `toolId` fields of its `Crewmate`. Not shipped. Contributions are welcome.
+**What to do:** Type `/claudesay`. A pane that you open shows at any width.
 
-- **Subagent characters have no bubble.** A subagent character has a label, its task. It does not have a line about its work.
+**If you want a character on a narrow terminal without the command**, draw a small one in the `ui.render` hook on `AbovePrompt` while `$.ui.panes()` says the pane is not placed. Not shipped. Contributions are welcome.
 
-  **Why we stop here:** Bubbles side by side are too narrow to read. A subagent's report goes to Claude, not to you, so the mod does not ask for a line about it.
+### The drawing expects one screen at a time
 
-  **If you want a bubble for subagents**, show the tool label of the subagent above its slot. `drawCrew` in `hooks/crew.ts` draws the crew. A `Crewmate` keeps only the look of its tool (prop, mood and side), not its label. Add a field for the label, and set it in the `tool.call` hook with `toolLabel` from `hooks/art.ts`. Keep the label in the slot width, or one long label covers the next slot. Not shipped. Contributions are welcome.
+A session can draw on more than one screen. For example, the Desktop app can connect to a session that runs in your terminal. The mod keeps one layout of the pane: the slots, the positions of the characters and the height of the inline pane. When two screens of different sizes draw the pane at once, the characters move toward the slots of the screen that drew last, and can jump between the two. The bubble, the tool label and the faces stay correct on each screen.
 
-- **Nested subagents, workflow agents and teammates do not show.** The pane shows only the subagents that the main loop starts.
+**Why we stop here:** Most sessions draw on one screen. The fault is in the layout only, and it ends when one screen goes away. A fix keeps a layout for each screen, and the timer then moves each of them. That doubles the state of the animation, for a case that is rare and hard to test.
 
-  **Why we stop here:** A workflow can start many agents, and nested agents are details of the work of one subagent. One character for each subagent of the main loop keeps the pane readable. A teammate stops between its turns, and a teammate in its own pane runs no loop in this session, so the mod does not know when it ends.
+**If a second screen comes**, keep the slot of each character and how far it has moved in `hooks/crew.ts`, not its column and row. Then each screen works out the positions from its own `Grid` in the `ui.render` hook on `Pane`. `e.surface` names the screen. Not shipped. Contributions are welcome.
 
-  **If you want to show them**, change the filter in the `agent.spawn` hook in `hooks/claudesay.tsx`. It skips a spawn with `parentAgentId`, `workflow` or `isTeammate`. A nested character could stand behind its parent. A workflow agent's `turn.complete` can come from a remote agent with no local loop, so its character may not leave. Use `sweepCrew` for those. For a teammate, keep the character in the `turn.complete` hook while `$.agent.list()` says `idle`. The engine can keep a pane teammate at `running` or `idle` after its pane closes, so the sweep needs another sign that it ended. Not shipped. Contributions are welcome.
+### After you approve a permission dialog, the character sleeps on until the tool finishes
 
-- **Emoji width changes with the font.** The mod counts each emoji as two columns. This includes emoji sequences, for example flags, skin tones and joined emoji. Some terminal fonts draw an emoji in one column. Then the right side of a prop row moves by one column.
+The idle time counts while a dialog waits on you. When you approve, the tool runs, but the character wakes only when the call ends. A long command that you approved after the idle time shows the sleeping face while it runs.
 
-  **Why we stop here:** A mod cannot ask the terminal how wide its font draws an emoji. Two columns is right in most modern terminals.
+**Why we stop here:** The engine raises no event when you answer a permission dialog. The `tool.call` hook only hears the end of the call, and the dialog is drawn by the engine alone, so the mod cannot see your answer.
 
-  **What to do:** Use single-width symbols as props. Refer to [CHARACTER_CUSTOMIZATION.md](CHARACTER_CUSTOMIZATION.md#single-width-props).
+**If you want it to wake at the approval**, look for a sign that the tool started to run. The `ui.render` hook on `ToolProgress` draws while a tool runs. A draw cannot write state, so clear `waits` on the call in `running` from a `$.clock.after(0, …)` that the draw schedules, then call `stir`. Test it with a command that runs for minutes. Not shipped. Contributions are welcome.
 
-  **If you want a width setting**, add a field such as `emojiWidth` to `character.json` (`sanitizeOverride` in `hooks/art.ts`), and use it in `cellWidth` in `hooks/art.ts` and in `toCells` in `hooks/crew.ts`. Both count an emoji as two cells today. Not shipped. Contributions are welcome.
+### The pane shows one tool
+
+When Claude runs tools in parallel, the pane shows the newest tool that still runs. This applies to each subagent character too.
+
+**Why we stop here:** A character has two hands and one bubble. More tools do not fit.
+
+**If you want to show more tools**, the `running` list in `hooks/claudesay.tsx` already holds all the tools that run now. Draw a count of the others in the bubble, for example `Edit → /repo/README.md (+2)`. A subagent character keeps only its newest tool, in the `look` and `toolId` fields of its `Crewmate`. Not shipped. Contributions are welcome.
+
+### Subagent characters have no bubble
+
+A subagent character has a label, its task. It does not have a line about its work.
+
+**Why we stop here:** Bubbles side by side are too narrow to read. A subagent's report goes to Claude, not to you, so the mod does not ask for a line about it.
+
+**If you want a bubble for subagents**, show the tool label of the subagent above its slot. `drawCrew` in `hooks/crew.ts` draws the crew. A `Crewmate` keeps only the look of its tool (prop, mood and side), not its label. Add a field for the label, and set it in the `tool.call` hook with `toolLabel` from `hooks/art.ts`. Keep the label in the slot width, or one long label covers the next slot. Not shipped. Contributions are welcome.
+
+### Nested subagents, workflow agents and teammates do not show
+
+The pane shows only the subagents that the main loop starts.
+
+**Why we stop here:** A workflow can start many agents, and nested agents are details of the work of one subagent. One character for each subagent of the main loop keeps the pane readable. A teammate stops between its turns, and a teammate in its own pane runs no loop in this session, so the mod does not know when it ends.
+
+**If you want to show them**, change the filter in the `agent.spawn` hook in `hooks/claudesay.tsx`. It skips a spawn with `parentAgentId`, `workflow` or `isTeammate`. A nested character could stand behind its parent. A workflow agent's `turn.complete` can come from a remote agent with no local loop, so its character may not leave. Use `sweepCrew` for those. For a teammate, keep the character in the `turn.complete` hook while `$.agent.list()` says `idle`. The engine can keep a pane teammate at `running` or `idle` after its pane closes, so the sweep needs another sign that it ended. Not shipped. Contributions are welcome.
+
+### Emoji width changes with the font
+
+The mod counts each emoji as two columns. This includes emoji sequences, for example flags, skin tones and joined emoji. Some terminal fonts draw an emoji in one column. Then the right side of a prop row moves by one column.
+
+**Why we stop here:** A mod cannot ask the terminal how wide its font draws an emoji. Two columns is right in most modern terminals.
+
+**What to do:** Use single-width symbols as props. Refer to [CHARACTER_CUSTOMIZATION.md](CHARACTER_CUSTOMIZATION.md#single-width-props).
+
+**If you want a width setting**, add a field such as `emojiWidth` to `character.json` (`sanitizeOverride` in `hooks/art.ts`), and use it in `cellWidth` in `hooks/art.ts` and in `toCells` in `hooks/crew.ts`. Both count an emoji as two cells today. Not shipped. Contributions are welcome.
 
 ## Development
 
@@ -329,18 +383,22 @@ claudesay is one TypeScript module, `hooks/claudesay.tsx`. Claude Code loads it 
 
 | Event | What the hook does |
 | --- | --- |
-| `session.start` | Registers the `/claudesay` command. Opens the pane, unless you closed it. Reads `character.json`. |
-| `turn.start` | Clears the last line, and stops a call for a line that has not come. Lets the inline pane get shorter again. Reads `character.json` again, so that a change shows on the next turn. Removes subagents that the engine no longer runs. |
+| `session.start` | Registers the `/claudesay` command. Reads `character.json`. Opens the pane, unless you closed it. Starts the idle time. |
+| `turn.start` | Wakes the character. Clears the last line, and stops a call for a line that has not come. Lets the inline pane get shorter again. Reads `character.json` again, so that a change shows on the next turn. Removes subagents that the engine no longer runs. |
 | `command.run` `claudesay` | Opens the pane at any width. |
 | `ui.close` | Remembers that you closed the pane, so that later sessions do not open it, and shows a toast that names `/claudesay`. |
 | `agent.spawn` | Adds a character for each subagent that the main loop starts. A resumed subagent keeps the character that it has. The hook does not change or block a spawn. |
-| `tool.call` | Records the tools that run now, for the main loop and for each subagent. Removes each tool when it stops. The hook does not change, block or approve a tool call. |
+| `tool.call` | Records the tools that run now, for the main loop and for each subagent. Removes each tool when it stops. A question or a plan to approve counts as idle time. The hook does not change, block or approve a tool call. |
+| `prompt.edit`, `prompt.change` | Wakes the character when you type in the prompt box or recall a history entry. The hooks do not change the box and do not wait for the clock. |
+| `classic.PermissionRequest` | Marks the tool call of the main loop that a permission dialog asks about, so that the wait counts as idle time. The hook does not answer the request. |
 | `turn.complete` | Sends the final answer to a small model, which writes the line in the pane. Only in the `on` mode, in a session with a screen, and while you have not closed the pane. The hook does not wait for the line. At the end of a subagent's run, its character leaves. A subagent that `$.agent.list()` shows as `waiting` keeps its character, because it continues after its background work. |
-| `ui.render` `Pane` | Draws the character and the subagents in the pane. |
+| `ui.render` `Pane` | Draws the character, the subagents and, when docked, the bird in the pane. |
 
 The drawing always has one blank row on top, to keep it apart from the frame. Docked, blank rows fill the pane above the drawing, so the character stays at the bottom. Inline, the `Pane` hook keeps the tallest height of the turn in `tallest`, and fills the gap with blank rows. `turn.start` resets it.
 
-The crew moves on a timer (`$.clock.every`) that runs only while a character moves. If the engine refuses or stops the timer, the next draw of the pane starts it again.
+The crew moves on a timer (`$.clock.every`) that runs only while a character moves or a bird flies. If the engine refuses or stops the timer, the next draw of the pane starts it again.
+
+The idle time is one `$.clock.after` timer at a time, armed when the work ends. It fires at the **Sleep after** option (`sleepAfter`, by default `SLEEP_AFTER`, two minutes: the character falls asleep) and at the **Rest after** option (`restAfter`, by default `REST_AFTER`, five minutes: the mod saves power). A turn that started meanwhile keeps the character awake. The snore runs on a `$.clock.every` timer of one second, only while the bubble snores. The next bird waits on a `$.clock.after` timer of 15 to 60 seconds (`BIRD_MIN`, `BIRD_MAX`). Only a docked draw schedules one.
 
 If the mod misses the end of a subagent's run, `turn.start` asks the engine which agents run (`sweepCrew`). A character whose agent stopped then leaves. It shows the error face only if the engine says that the agent failed or was killed.
 
@@ -351,7 +409,7 @@ claudesay/
 ├── .github/workflows/
 │   └── test.yml              # CI: claude plugin validate and claude plugin test.
 ├── .claude-plugin/
-│   ├── plugin.json           # Plugin manifest. Names the state contract and the mode option.
+│   ├── plugin.json           # Plugin manifest. Names the state contract, the mode and the idle times.
 │   ├── marketplace.json      # Makes this repository a marketplace.
 │   ├── icon.png              # Plugin icon: the default character, 1024 × 1024.
 │   └── types/                # Claude Code writes this folder. Git ignores it.
@@ -359,12 +417,14 @@ claudesay/
 │   ├── hooks.json            # Names the hooks module.
 │   ├── claudesay.tsx         # The hooks module: events, state, the call for the line, the command and the pane.
 │   ├── art.ts                # Pure functions: character, bubble, the line prompt and parse, line check, tool props.
-│   └── crew.ts               # Pure functions: the slots, the plane, the parachute, the spark and the crew drawing.
+│   ├── crew.ts               # Pure functions: the slots, the plane, the parachute, the spark and the crew drawing.
+│   └── sky.ts                # Pure functions: the bird that flies across the docked pane.
 ├── types/
 │   └── index.d.ts            # State contract and shared types.
 ├── tests/
 │   ├── art.test.ts           # Unit tests for art.ts.
 │   ├── crew.test.ts          # Unit tests for crew.ts.
+│   ├── sky.test.ts           # Unit tests for sky.ts.
 │   └── claudesay.test.tsx    # Tests for the hooks against the Claude Code engine.
 ├── tsconfig.json             # Type-check configuration.
 ├── LICENSE

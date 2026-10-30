@@ -1,11 +1,12 @@
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register, Timer } from 'claude-code'
 
-import type { ActiveTool, CharacterOverride, Crewmate, Drop, ToolLook } from '../types'
+import type { ActiveTool, Bird, CharacterOverride, Crewmate, Drop, ToolLook } from '../types'
 import {
   BUBBLE_WIDTH,
   DEFAULT_CHARACTER,
   SAY_SYSTEM,
+  SNORES,
   clean,
   cut,
   drawBubble,
@@ -18,6 +19,7 @@ import {
   withOverride,
 } from './art.ts'
 import { FAIL_HOLD, type Grid, drawAir, drawCrew, dropTo, isAirborne, stepDrop, gridOf, isSettled, newCrewmate, rowsIn, slotWidth, stepCrew } from './crew.ts'
+import { drawBird, newBird, placeBird, stepBird } from './sky.ts'
 
 const running = atom({ plugin: 'claudesay', key: 'running' } as const, [])
 const saying = atom({ plugin: 'claudesay', key: 'saying' } as const, null)
@@ -25,6 +27,8 @@ const override = atom({ plugin: 'claudesay', key: 'character' } as const, null)
 const working = atom({ plugin: 'claudesay', key: 'working' } as const, false)
 const crew = atom({ plugin: 'claudesay', key: 'crew' } as const, [])
 const landing = atom({ plugin: 'claudesay', key: 'landing' } as const, null)
+const sleep = atom({ plugin: 'claudesay', key: 'sleep' } as const, null)
+const flying = atom({ plugin: 'claudesay', key: 'bird' } as const, null)
 
 // The id of the pane, and the name of the command that opens it.
 const PANE = 'claudesay'
@@ -52,6 +56,19 @@ const STALL = TICK * 10
 const MAX_LABEL = 100
 // Agent states that mean the agent stopped (AgentStatus).
 const ENDED = new Set(['completed', 'failed', 'killed'])
+// The default milliseconds with nothing to do after which the character falls
+// asleep, and after which the mod starts no new animation, no snore and no
+// bird, until something wakes it: an idle session then runs no timer of the
+// mod's. The sleepAfter and restAfter options set them in steps of 30 seconds.
+const SLEEP_AFTER = 2 * 60_000
+const REST_AFTER = 5 * 60_000
+// Milliseconds between two frames of the snore.
+const SNORE = 1000
+// The shortest and the longest wait for the next bird: one comes at least each minute.
+const BIRD_MIN = 15_000
+const BIRD_MAX = 60_000
+// Tools that wait on the person while they run: a question, a plan to approve.
+const ASKS_PERSON = new Set(['AskUserQuestion', 'ExitPlanMode'])
 // What the character says when it lands in a pane that opened with nothing to say.
 const GREETING = { mood: 'happy', line: "Hi! I'll sum up each reply here." } as const
 
@@ -63,7 +80,8 @@ let calls = 0
 // The slots of the pane at the last draw. The crew floats down to them, and a
 // crewmate that leaves turns into a spark there.
 let grid: Grid = gridOf(80, 1, slotWidth(DEFAULT_CHARACTER))
-// The timer that moves the crew. It runs only while a crewmate moves.
+// The timer that moves the crew, the main character's drop and the bird. It
+// runs only while one of them moves.
 let ticker: Timer | null = null
 // The clock time of the timer's last step.
 let lastTick = 0
@@ -78,6 +96,24 @@ let mainDrop: Drop | null = null
 // pane never draws fewer in that turn, so it does not jump when a bubble comes
 // and goes between tool calls.
 let tallest = 0
+// The bird that flies across the docked pane now, or null. Like the main
+// character's drop, it lives here, and each step of the timer copies it to the
+// bird atom. Its first draw gives it its row.
+let bird: Bird | null = null
+// The timer that brings the next bird.
+let birdTimer: Timer | null = null
+// True when the pane drew docked last. Birds fly only there.
+let inDock = false
+// The timer of the next point of the idle time, and the timer of the snore.
+let idleTimer: Timer | null = null
+let snorer: Timer | null = null
+// The clock time when the session last did something: the idle time counts from it.
+let lastActive = 0
+// The idle times of the options: the character sleeps from sleepAfter on, and
+// the mod rests from restAfter on, until something wakes the character.
+let sleepAfter = SLEEP_AFTER
+let restAfter = REST_AFTER
+let resting = false
 // Stops the small model's call for the line about the last reply. A new turn
 // or a new session stops it, so a late line never shows.
 let asking: AbortController | null = null
@@ -154,6 +190,7 @@ function askLine($: EngineInterface, answer: string) {
       asking = null
       await update($, saying, () => says)
       await update($, working, () => false)
+      await startIdle($).catch(() => {})
     })
     .catch(() => {})
 }
@@ -169,9 +206,9 @@ function stopTicker() {
   ticker = null
 }
 
-// True when no crewmate moves and the main character has landed: the timer can
-// stop. It reads the module's `grid` and `mainDrop`.
-const isStill = (list: readonly Crewmate[], slot: number) => isSettled(list, grid, slot) && mainDrop === null
+// True when no crewmate moves, the main character has landed and no bird
+// flies: the timer can stop. It reads the module's `grid`, `mainDrop` and `bird`.
+const isStill = (list: readonly Crewmate[], slot: number) => isSettled(list, grid, slot) && mainDrop === null && bird === null
 
 // Starts the timer that moves the crew, unless it runs or nobody has to move.
 // A refused period ends the timer without a word, so a timer that has not ticked
@@ -187,6 +224,7 @@ async function animate($: EngineInterface, list: Crewmate[], slot: number) {
     stepAll($).catch(() => {
       stopTicker()
       mainDrop = null
+      bird = null
     })
   })
 }
@@ -203,7 +241,136 @@ async function stepAll($: EngineInterface) {
     mainDrop = isAirborne(next, slot) || next.plane !== null ? next : null
     await update($, landing, () => mainDrop)
   }
+  if (bird !== null) {
+    bird = stepBird(bird, grid.columns)
+    await update($, flying, () => bird)
+    if (bird === null) scheduleBird($)
+  }
   if (isStill(list, slot)) stopTicker()
+}
+
+// Brings the next bird at a random time, unless a bird flies or waits, the
+// pane is not docked, or the mod rests.
+function scheduleBird($: EngineInterface) {
+  if (birdTimer !== null || bird !== null || !inDock || resting) return
+  const timer = $.clock.after(BIRD_MIN + Math.random() * (BIRD_MAX - BIRD_MIN), () => {
+    if (birdTimer !== timer) return
+    birdTimer = null
+    launchBird($).catch(() => {
+      bird = null
+    })
+  })
+  birdTimer = timer
+}
+
+function stopBirds() {
+  birdTimer?.cancel()
+  birdTimer = null
+}
+
+// A bird sets off from a random edge at a random height. A pane that is no
+// longer docked, or a mod that rests, gets none: the next docked draw, or the
+// character waking up, schedules the next one.
+async function launchBird($: EngineInterface) {
+  if (!inDock || resting) return
+  bird = newBird(grid.columns, Math.random() < 0.5 ? 1 : -1, Math.random())
+  await update($, flying, () => bird)
+  await animate($, await read($, crew), slotWidth(await character($)))
+}
+
+// True while Claude or a subagent works: the character stays awake. A main
+// loop that waits on the person does not count: the idle time runs on.
+async function isBusy($: EngineInterface) {
+  if ((await read($, crew)).some(mate => mate.phase === 'work')) return true
+  const tools = await read($, running)
+  if (tools.some(tool => tool.waits === true)) return false
+  return tools.length > 0 || (await read($, working))
+}
+
+function stopIdle() {
+  idleTimer?.cancel()
+  idleTimer = null
+  snorer?.cancel()
+  snorer = null
+}
+
+// Something happened: the idle time counts from now, and a sleeping character
+// wakes up, with its snore and its birds.
+async function stir($: EngineInterface) {
+  lastActive = await $.clock.now()
+  if (!resting && (await read($, sleep)) === null) return
+  stopIdle()
+  resting = false
+  await update($, sleep, () => null)
+  scheduleBird($)
+}
+
+// Arms the timer of the next point of the idle time, unless it is armed, the
+// mod rests, or Claude works: the end of the work arms it.
+async function armIdle($: EngineInterface) {
+  if (idleTimer !== null || resting || (await isBusy($))) return
+  const asleep = (await read($, sleep)) !== null
+  const wait = (asleep ? restAfter : sleepAfter) - ((await $.clock.now()) - lastActive)
+  // Another call, from a keystroke say, may have armed it while this one waited.
+  if (idleTimer !== null || resting) return
+  idleTimer = $.clock.after(Math.max(0, wait), () => {
+    idleTimer = null
+    doze($).catch(() => {})
+  })
+}
+
+// The work ended, or the person typed: the idle time starts again.
+async function startIdle($: EngineInterface) {
+  await stir($)
+  await armIdle($)
+}
+
+// A point of the idle time: sleepAfter puts the character to sleep, restAfter
+// makes the mod rest. A turn that started meanwhile keeps it awake.
+async function doze($: EngineInterface) {
+  if (await isBusy($)) return
+  const idle = (await $.clock.now()) - lastActive
+  const asleep = (await read($, sleep)) !== null
+  if (asleep && idle >= restAfter) return restNow($)
+  if (!asleep && idle >= sleepAfter) await fallAsleep($)
+  await armIdle($)
+}
+
+// The character closes its eyes. With a line or the label of a tool that waits
+// on the person in the bubble, it stays. With neither, after a turn that ended
+// without an answer, the bubble snores.
+async function fallAsleep($: EngineInterface) {
+  if ((await read($, saying)) !== null || (await read($, running)).length > 0) {
+    await update($, sleep, () => SNORES.at(-1)!)
+    return
+  }
+  await update($, sleep, () => SNORES[0])
+  snorer?.cancel()
+  let frame = 0
+  const timer = $.clock.every(SNORE, () => {
+    if (snorer !== timer) return
+    frame = (frame + 1) % SNORES.length
+    update($, sleep, () => SNORES[frame]!).catch(() => {})
+  })
+  snorer = timer
+}
+
+// restAfter idle: the snore stops on its last frame, and no new bird comes
+// until the character wakes. A bird in the air flies on out of the pane.
+async function restNow($: EngineInterface) {
+  stopIdle()
+  stopBirds()
+  resting = true
+  await update($, sleep, () => SNORES.at(-1)!)
+}
+
+// Reads an idle time option such as "1m30s" as milliseconds, or the default
+// for a value that is not one.
+function parseIdle(value: unknown, fallback: number): number {
+  const match = typeof value === 'string' ? /^(?:(\d+)m)?(?:(\d+)s)?$/.exec(value) : null
+  if (match === null) return fallback
+  const ms = (Number(match[1] ?? 0) * 60 + Number(match[2] ?? 0)) * 1000
+  return ms > 0 ? ms : fallback
 }
 
 // The crewmate of the agent holds the prop of a tool while `run` runs. It lets
@@ -255,6 +422,9 @@ export const register: Register = (on, options) => {
   // A change in the config menu loads the module again with the new mode.
   const mode = options.mode === 'tools' || options.mode === 'off' ? options.mode : 'on'
   if (mode === 'off') return
+  // The mod never rests before the character sleeps.
+  sleepAfter = parseIdle(options.sleepAfter, SLEEP_AFTER)
+  restAfter = Math.max(sleepAfter, parseIdle(options.restAfter, REST_AFTER))
 
   // A new session loads character.json, starts with no line, no tools, no crew
   // and a pane that may shrink, and opens the pane, unless the person closed it by hand: then
@@ -265,13 +435,21 @@ export const register: Register = (on, options) => {
     await reloadCharacter($)
     stopTicker()
     stopAsking()
+    stopIdle()
+    stopBirds()
     tallest = 0
+    bird = null
+    resting = false
+    lastActive = await $.clock.now().catch(() => 0)
+    await update($, sleep, () => null)
+    await update($, flying, () => null)
     await update($, crew, () => [])
     await update($, running, () => [])
     await update($, working, () => false)
     await update($, saying, () => null)
     // Last: the open draws the pane, and that draw starts the drop of the main character.
     if ((await $.store.get('closed')) !== true) await openPane($, mode === 'on').catch(() => {})
+    await armIdle($).catch(() => {})
     return result
   })
 
@@ -285,6 +463,7 @@ export const register: Register = (on, options) => {
     if (e.agentId !== undefined) return result
     tallest = 0
     stopAsking()
+    await stir($).catch(() => {})
     await update($, working, () => true)
     await update($, saying, () => null)
     await reloadCharacter($)
@@ -304,12 +483,25 @@ export const register: Register = (on, options) => {
   on('ui.close', { id: PANE }, async ($, e, next) => {
     const result = await next(e)
     arriving = true
+    inDock = false
     if (e.origin.kind === 'person') {
       await $.store.set('closed', true)
       $.ui.toast(`claudesay closed. Type /${PANE} to open it again.`)
     }
     return result
   })
+
+  // Typing in the prompt box, or a recalled history entry, wakes the character,
+  // and the idle time starts again. The hooks only observe: they pass every edit
+  // on unchanged, and they do not wait for the clock, so the typing never waits.
+  on('prompt.edit', ($, e, next) => {
+    void startIdle($).catch(() => {})
+    return next(e)
+  }).catch(($, e, next) => next(e))
+  on('prompt.change', ($, e, next) => {
+    void startIdle($).catch(() => {})
+    return next(e)
+  }).catch(($, e, next) => next(e))
 
   // Each subagent that the main loop spawns floats down to a slot after the character.
   // Nested agents, workflow agents and teammates stay out of the pane: a teammate
@@ -341,13 +533,37 @@ export const register: Register = (on, options) => {
     const look = lookFor(await character($), e.tool)
     if (agentId !== undefined) return holdProp($, agentId, { look, toolId }, () => next(e))
     const filePath = 'file_path' in e && typeof e.file_path === 'string' ? e.file_path : undefined
-    const tool: ActiveTool = { id: toolId, label: toolLabel(e.tool, filePath), look }
+    const asks = ASKS_PERSON.has(e.tool)
+    const tool: ActiveTool = { id: toolId, tool: e.tool, label: toolLabel(e.tool, filePath), look, ...(asks ? { waits: true as const } : {}) }
     await update($, running, list => [...list, tool].slice(-20))
+    if (asks) await startIdle($).catch(() => {})
     try {
       return await next(e)
     } finally {
-      await update($, running, list => list.filter(one => one.id !== tool.id))
+      // A call that waited on the person ends when the person acted: the
+      // character wakes. The update reads the list as it is now: another hook,
+      // a permission dialog's, may have marked the call since it started.
+      let waited = false
+      await update($, running, list => {
+        waited = list.some(one => one.id === tool.id && one.waits === true)
+        return list.filter(one => one.id !== tool.id)
+      })
+      if (waited) await stir($).catch(() => {})
     }
+  }).catch(($, e, next) => next(e))
+
+  // A permission dialog of the main loop waits on the person: the newest call
+  // of the tool waits, and the idle time counts from now. A hook beneath that
+  // answered the request shows no dialog. The hook only observes: it passes
+  // every request on unchanged.
+  on('classic.PermissionRequest', async ($, e, next) => {
+    const result = await next(e)
+    if (e.agent_id !== undefined || result.decision !== undefined) return result
+    const waiting = (await read($, running)).findLast(one => one.tool === e.tool_name)
+    if (waiting === undefined) return result
+    await update($, running, list => list.map(one => (one.id === waiting.id ? { ...one, waits: true as const } : one)))
+    await startIdle($).catch(() => {})
+    return result
   }).catch(($, e, next) => next(e))
 
   // At the end of a main-loop turn, a small model writes the line about the
@@ -364,6 +580,7 @@ export const register: Register = (on, options) => {
           const status = (await $.agent.list()).find(agent => agent.id === id)?.status
           if (status === 'waiting') return result
           await changeCrew($, list => list.map(mate => (mate.id === id ? ending(mate, e.reason !== 'answer') : mate)))
+          await startIdle($).catch(() => {})
         }
         return result
       }
@@ -374,7 +591,10 @@ export const register: Register = (on, options) => {
       return result
     } finally {
       // Always, so a failed hook cannot leave the thinking face. The line ends it otherwise.
-      if (e.agentId === undefined && !asks) await update($, working, () => false)
+      if (e.agentId === undefined && !asks) {
+        await update($, working, () => false)
+        await startIdle($).catch(() => {})
+      }
     }
   }).catch(($, e, next) => next(e))
 
@@ -391,10 +611,11 @@ export const register: Register = (on, options) => {
     const width = Math.max(MIN_WIDTH, Math.min(BUBBLE_WIDTH, columns - 5))
     const upset = mates.some(mate => mate.phase === 'failed' && mate.hold > 0)
     const busy = await read($, working)
-    const { text, body } = poseFor(art, (await read($, running)).at(-1), await read($, saying), busy, upset)
+    const { text, body } = poseFor(art, (await read($, running)).at(-1), await read($, saying), busy, upset, await read($, sleep))
     // As many rows of slots as the room under BUBBLE_ROWS holds: a character and
     // its label each. The bubble does not count, so the crew stays put when it changes.
     const docked = e.props.placement === 'dock'
+    inDock = docked
     grid = gridOf(columns, rowsIn(room - 1 - BUBBLE_ROWS, body.length), slot, body.length, grid.top, docked)
     // A new size moves the slots, so the crew may have to move.
     await animate($, mates, slot)
@@ -402,6 +623,7 @@ export const register: Register = (on, options) => {
     // It is in the air from this draw on. With no timer, it is in its slot at once.
     // The read draws the pane again at each step.
     await read($, landing)
+    await read($, flying)
     const arrive = arriving
     if (arrive) {
       arriving = false
@@ -417,6 +639,7 @@ export const register: Register = (on, options) => {
     const bubble = text === null || fits < 1 ? [] : drawBubble(art, text, width, fits)
     // One blank row keeps the drawing apart from the frame, with or without a
     // bubble. The bubble waits in blank rows until the main character landed.
+    const shown = mainDrop === null ? bubble : []
     const drawn = [' ', ...(mainDrop === null ? bubble : bubble.map(() => ' ')), ...drawing]
     tallest = Math.max(tallest, drawn.length)
     // Blank rows above it fill the dock, or keep the inline pane as tall as it was in this turn.
@@ -426,7 +649,11 @@ export const register: Register = (on, options) => {
     grid = { ...grid, top: lines.length - drawing.length }
     // Now that the drawing is in place, the drop knows how far it falls.
     if (arrive && mainDrop !== null) mainDrop = dropTo(0, 0, grid)
-    const rows = drawAir(art, lines, mates, grid, slot, { rows: body, landing: mainDrop })
+    const air = drawAir(art, lines, mates, grid, slot, { rows: body, landing: mainDrop })
+    // A bird flies over the docked pane, in a row that holds nothing.
+    if (docked && bird !== null) bird = placeBird(bird, air)
+    const rows = docked ? drawBird(air, bird, columns, { top: lines.length - drawing.length - shown.length, lines: shown }) : air
+    scheduleBird($)
 
     const { Box, Text } = $.ui.resolve(e)
     return (
