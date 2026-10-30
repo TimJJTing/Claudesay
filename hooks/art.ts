@@ -580,9 +580,12 @@ Answer NONE when the reply is mostly code, a diff or long technical output, or h
 
 Example: happy I fixed the flaky test and all tests pass. Do you want a commit?`
 
-// The prompt for one reply. A closing tag in the reply cannot end the data early.
+// The prompt for one reply. A closing tag in the reply, in any case or spacing,
+// cannot end the data early. The end of the reply never starts with half of a
+// surrogate pair.
 export function sayPrompt(answer: string, max: number): string {
-  return `<reply>\n${answer.slice(-max).replaceAll('</reply>', '</ reply>')}\n</reply>`
+  const end = answer.slice(-max).replace(/^[\udc00-\udfff]/, '')
+  return `<reply>\n${end.replace(/<\s*\/\s*reply\s*>/gi, '</ reply>')}\n</reply>`
 }
 
 // Reads the small model's answer: a mood and the line, or NONE. Gives null for
