@@ -2,6 +2,8 @@
 
 claudesay is a Claude Code mod. It shows an ASCII character in a pane beside the chat.
 
+![claudesay demo: subagent characters parachute into the pane, the character holds a prop for each tool, and it sums up the reply in a speech bubble](docs/claudesay-demo.gif)
+
 - While Claude uses a tool, the character holds a prop for that tool.
 - After a conversational reply, the character says the main point of the reply in a speech bubble. A small model (Haiku) writes this line.
 - Each subagent gets a small character too.
